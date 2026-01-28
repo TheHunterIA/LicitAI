@@ -1,4 +1,3 @@
-
 import React, { useRef } from 'react';
 import { TargetField, ContextData, FileData } from '../types';
 import { Paperclip, Upload } from 'lucide-react'; // Importar ícones do lucide-react
@@ -47,25 +46,25 @@ const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate,
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-7 space-y-6">
+    <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-7 space-y-7">
       <div>
-        <label className="block text-sm font-black text-slate-800 mb-2 uppercase tracking-wide">
+        <label className="block text-base font-extrabold text-slate-700 mb-2 uppercase tracking-widest">
           1. OBJETO E FINALIDADE DA LICITAÇÃO
         </label>
         <textarea
           placeholder="Ex: Aquisição de gêneros alimentícios para o rancho..."
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg h-28 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
+          className="w-full px-4 py-3 border border-slate-300 rounded-xl h-28 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
           value={data.objectAndPurpose}
           onChange={(e) => onChange({ objectAndPurpose: e.target.value })}
         />
       </div>
 
       <div>
-        <label className="block text-sm font-black text-slate-800 mb-2 uppercase tracking-wide">
+        <label className="block text-base font-extrabold text-slate-700 mb-2 uppercase tracking-widest">
           2. DOCUMENTO ALVO (Referência)
         </label>
         <select
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none transition-all text-slate-800 bg-white font-medium cursor-pointer"
+          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none transition-all text-slate-800 bg-white font-medium cursor-pointer"
           value={data.target}
           onChange={(e) => onChange({ target: e.target.value as TargetField })}
         >
@@ -76,17 +75,17 @@ const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate,
       </div>
 
       <div className="space-y-3">
-        <label className="block text-sm font-black text-slate-800 uppercase tracking-wide flex justify-between">
+        <label className="block text-base font-extrabold text-slate-700 uppercase tracking-widest flex justify-between">
           <span>DESCRIÇÃO DOS ITENS / LOTES</span>
         </label>
         <textarea
           placeholder="Digite ou anexe a planilha de itens abaixo."
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg h-36 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none resize-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
+          className="w-full px-4 py-3 border border-slate-300 rounded-xl h-36 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none resize-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
           value={data.itemsInfo}
           onChange={(e) => onChange({ itemsInfo: e.target.value })}
         />
         
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-inner">
+        <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 shadow-inner">
           <input 
             type="file" 
             ref={itemFileRef} 
@@ -97,18 +96,18 @@ const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate,
           />
           <button 
             onClick={() => itemFileRef.current?.click()}
-            className="flex items-center gap-2 text-xs font-black text-slate-700 hover:bg-slate-100 p-2 rounded-md transition-all border border-transparent hover:border-slate-300 group"
+            className="flex items-center gap-2 text-sm font-bold text-slate-700 hover:bg-slate-200 p-3 rounded-lg transition-all border border-slate-300 group"
           >
-            <Paperclip className="h-4 w-4 text-blue-600 group-hover:text-blue-700" strokeWidth={2.5}/>
+            <Paperclip className="h-5 w-5 text-blue-700 group-hover:text-blue-800" strokeWidth={2.5}/>
             ANEXAR ITENS (PDF/CSV/TXT/IMG)
           </button>
           
           {data.itemFiles && data.itemFiles.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {data.itemFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-green-600 text-white text-[9px] font-bold px-2 py-1 rounded-full shadow-sm">
+                <div key={idx} className="flex items-center gap-2 bg-blue-100 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm border border-blue-200">
                   <span className="truncate max-w-[100px]">{file.name}</span>
-                  <button onClick={() => removeFile(idx, 'itemFiles')} className="text-white/80 hover:text-white"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
+                  <button onClick={() => removeFile(idx, 'itemFiles')} className="text-blue-500 hover:text-blue-700"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
                 </div>
               ))}
             </div>
@@ -117,30 +116,30 @@ const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate,
       </div>
 
       <div>
-        <label className="block text-sm font-black text-slate-800 mb-2 uppercase tracking-wide">
+        <label className="block text-base font-extrabold text-slate-700 mb-2 uppercase tracking-widest">
           TÓPICO / CAMPO DO SISTEMA
         </label>
         <input
           type="text"
           placeholder="Ex: Qualificação Técnica"
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none transition-all bg-white text-slate-800 font-medium placeholder:text-slate-400"
+          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none transition-all bg-white text-slate-800 font-medium placeholder:text-slate-400"
           value={data.topic}
           onChange={(e) => onChange({ topic: e.target.value })}
         />
       </div>
 
       <div className="space-y-3">
-        <label className="block text-sm font-black text-slate-800 uppercase tracking-wide">
+        <label className="block text-base font-extrabold text-slate-700 uppercase tracking-widest">
           3. INTERAÇÃO E REFERÊNCIAS
         </label>
         <textarea
           placeholder="Modelos de editais, normas adicionais ou instruções."
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg h-28 focus:ring-2 focus:ring-blue-400 focus:focus:border-blue-500 outline-none resize-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
+          className="w-full px-4 py-3 border border-slate-300 rounded-xl h-28 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none resize-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
           value={data.interaction}
           onChange={(e) => onChange({ interaction: e.target.value })}
         />
         
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-inner">
+        <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 shadow-inner">
           <input 
             type="file" 
             ref={refFileRef} 
@@ -151,18 +150,18 @@ const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate,
           />
           <button 
             onClick={() => refFileRef.current?.click()}
-            className="flex items-center gap-2 text-xs font-black text-slate-700 hover:bg-slate-100 p-2 rounded-md transition-all border border-transparent hover:border-slate-300 group"
+            className="flex items-center gap-2 text-sm font-bold text-slate-700 hover:bg-slate-200 p-3 rounded-lg transition-all border border-slate-300 group"
           >
-            <Upload className="h-4 w-4 text-purple-600 group-hover:text-purple-700" strokeWidth={2.5}/>
+            <Upload className="h-5 w-5 text-purple-700 group-hover:text-purple-800" strokeWidth={2.5}/>
             ANEXAR REFERÊNCIAS (PDF/CSV/TXT/IMG)
           </button>
           
           {data.files && data.files.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {data.files.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-blue-700 text-white text-[9px] font-bold px-2 py-1 rounded-full shadow-sm">
+                <div key={idx} className="flex items-center gap-2 bg-blue-100 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm border border-blue-200">
                   <span className="truncate max-w-[100px]">{file.name}</span>
-                  <button onClick={() => removeFile(idx, 'files')} className="text-white/80 hover:text-white"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
+                  <button onClick={() => removeFile(idx, 'files')} className="text-blue-500 hover:text-blue-700"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
                 </div>
               ))}
             </div>
@@ -173,8 +172,8 @@ const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate,
       <button
         onClick={onGenerate}
         disabled={loading}
-        className={`w-full py-5 rounded-lg font-black text-xl text-white transition-all transform active:scale-95 shadow-xl border-b-4 
-          ${loading ? 'bg-slate-500 border-slate-700 animate-pulse' : 'bg-gradient-to-r from-blue-700 to-blue-800 border-blue-900 hover:from-blue-800 hover:to-blue-900'}`
+        className={`w-full py-4 rounded-xl font-extrabold text-2xl text-white transition-all transform active:scale-95 shadow-2xl 
+          ${loading ? 'bg-slate-400 border-slate-600 animate-pulse' : 'bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950'}`
         }
       >
         {loading ? 'PROCESSANDO...' : 'GERAR TEXTO PARA O PORTAL'}

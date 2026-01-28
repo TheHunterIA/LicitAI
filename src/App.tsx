@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom/client'; // Import ReactDOM to use createRoot for temporary rendering
 import { TargetField, ContextData, HistoryItem, ChatMessage, FullDocument, FileData } from './types';
 import InputSection from './components/InputSection';
 import OutputSection from './components/OutputSection';
 import FullDocumentModal from './components/FullDocumentModal';
 import { generateInitialDraft, sendChatMessage } from './services/geminiService';
-import { supabase } from './services/supabaseService'; // Importar o serviço Supabase
+import MarkdownRenderer from './components/MarkdownRenderer'; 
+import { jsPDF } from 'jspdf'; // Importar jsPDF
 
 const App: React.FC = () => {
   const [formData, setFormData] = useState<ContextData>({
@@ -22,7 +24,7 @@ const App: React.FC = () => {
   
   const [fullDocument, setFullDocument] = useState<FullDocument>({});
   const [showFullDoc, setShowFullDoc] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [pdfLoading, setPdfLoading] = useState(false); // Novo estado para carregamento do PDF
 
   const handleFormDataChange = (newData: Partial<ContextData>) => {
     setFormData(prev => ({ ...prev, ...newData }));
@@ -32,7 +34,6 @@ const App: React.FC = () => {
     setLoading(true);
     setResult(null);
     setChatHistory([]);
-    setSaveStatus('idle'); // Resetar status de salvamento
     try {
       const { draft, commentary } = await generateInitialDraft(formData, fullDocument);
       
@@ -75,7 +76,6 @@ const App: React.FC = () => {
     const updatedHistory = [...chatHistory, newUserMsg];
     setChatHistory(updatedHistory);
     setChatLoading(true);
-    setSaveStatus('idle'); // Resetar status de salvamento
 
     try {
       const aiResponse = await sendChatMessage(text, updatedHistory, formData, result, fullDocument, files);
@@ -87,59 +87,95 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveProject = async () => {
-    if (!result && Object.keys(fullDocument).length === 0) {
-      alert("Não há dados gerados para salvar.");
+  const handleExportPdf = async () => {
+    if (Object.keys(fullDocument).length === 0) {
+      alert("Não há minuta para exportar em PDF.");
       return;
     }
 
-    setSaveStatus('saving');
+    setPdfLoading(true);
     try {
-      // Usamos o objeto `formData` atual e o `fullDocument` para salvar o estado mais recente
-      // Como o `HistoryItem` é um snapshot, precisamos construir um para salvar
-      const currentProject: HistoryItem = {
-        id: crypto.randomUUID(), // Gera um novo ID para o item salvo
-        timestamp: new Date(),
-        data: { ...formData },
-        result: result || "",
-        chatHistory: [...chatHistory],
-        fullDocument: { ...fullDocument }
-      };
+      const doc = new jsPDF('p', 'mm', 'a4');
+      let yOffset = 10;
+      const pageHeight = doc.internal.pageSize.height;
+      const margin = 15;
 
-      const { error } = await supabase
-        .from('licitacoes')
-        .insert({
-          id: currentProject.id,
-          timestamp: currentProject.timestamp.toISOString(),
-          object_and_purpose: currentProject.data.objectAndPurpose,
-          target: currentProject.data.target,
-          topic: currentProject.data.topic,
-          items_info: currentProject.data.itemsInfo,
-          interaction: currentProject.data.interaction,
-          item_files: currentProject.data.itemFiles || [],
-          reference_files: currentProject.data.files || [],
-          generated_draft: currentProject.result,
-          chat_history: currentProject.chatHistory || [],
-          full_document: currentProject.fullDocument || {}
+      // Adicionar página de título
+      doc.setFontSize(24);
+      doc.text("Minuta Completa LicitAI", doc.internal.pageSize.width / 2, yOffset + 20, { align: "center" });
+      doc.setFontSize(12);
+      doc.text(`Gerado em: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, doc.internal.pageSize.width / 2, yOffset + 35, { align: "center" });
+      doc.addPage();
+      yOffset = margin; // Reset yOffset for new page
+
+      // Criar um div temporário e oculto para renderizar os componentes React em HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px'; // Esconder fora da tela
+      document.body.appendChild(tempDiv); // Anexar ao DOM para permitir a renderização
+
+      const sections = Object.entries(fullDocument) as [TargetField, string][];
+
+      for (const [field, content] of sections) {
+        if (!content || content.trim() === "") continue;
+
+        // Adicionar título da seção
+        doc.setFontSize(14);
+        doc.setTextColor(41, 128, 185); // Azul para títulos
+        doc.text(`${field}:`, margin, yOffset);
+        yOffset += 10;
+        doc.setTextColor(0, 0, 0); // Resetar cor do texto para preto
+
+        // Criar um root React temporário e renderizar o conteúdo Markdown
+        const root = ReactDOM.createRoot(tempDiv);
+        root.render(<MarkdownRenderer text={content} />);
+        
+        // Dar um pequeno tempo para o React renderizar o conteúdo no tempDiv
+        await new Promise(resolve => setTimeout(resolve, 50)); 
+
+        // Usar o método html do jsPDF para adicionar o conteúdo do tempDiv ao PDF
+        // O método html retorna uma promessa que resolve para o próprio objeto jspdf
+        await doc.html(tempDiv, {
+            x: margin,
+            y: yOffset,
+            width: doc.internal.pageSize.width - 2 * margin,
+            windowWidth: 794, // Largura padrão A4 em 96 DPI para html2canvas
+            // callback é executado após a renderização, mas não é estritamente necessário se você aguarda a promessa
         });
 
-      if (error) throw error;
-      setSaveStatus('success');
-      console.log('Projeto salvo com sucesso!');
-      setTimeout(() => setSaveStatus('idle'), 3000);
-    } catch (error: any) {
-      console.error('Erro ao salvar projeto:', error.message);
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
+        // Estimar a altura do conteúdo renderizado para ajustar o yOffset
+        // Esta é uma estimativa. Para precisão exata, seria necessário um método mais complexo ou medir tempDiv.offsetHeight
+        const estimatedContentHeight = tempDiv.offsetHeight * 0.264583; // Approx. 1px = 0.264583 mm at 96 DPI
+        yOffset += estimatedContentHeight + 10; // Adicionar altura estimada e um padding
+
+        // Adicionar nova página se estiver perto do fim
+        if (yOffset > pageHeight - margin) {
+            doc.addPage();
+            yOffset = margin;
+        }
+        
+        // Desmontar o root temporário para evitar vazamentos de memória
+        root.unmount();
+      }
+
+      // Limpar o div temporário do DOM
+      document.body.removeChild(tempDiv);
+
+      doc.save('minuta_licitai.pdf');
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      alert("Ocorreu um erro ao gerar o PDF. Verifique o console para mais detalhes.");
+    } finally {
+      setPdfLoading(false);
     }
   };
+
 
   const loadFromHistory = (item: HistoryItem) => {
     setFormData(item.data);
     setResult(item.result);
     setChatHistory(item.chatHistory || []);
     if (item.fullDocument) setFullDocument(item.fullDocument);
-    setSaveStatus('idle'); // Resetar status de salvamento ao carregar histórico
   };
 
   const handleClearDoc = () => {
@@ -147,31 +183,11 @@ const App: React.FC = () => {
       setFullDocument({});
       setResult(null);
       setChatHistory([{ role: 'model', text: "Minuta compilada reiniciada. Iniciando novo processo." }]);
-      setSaveStatus('idle'); // Resetar status de salvamento
     }
   };
-
-  const getSaveButtonText = () => {
-    switch (saveStatus) {
-      case 'saving': return 'SALVANDO...';
-      case 'success': return 'SALVO!';
-      case 'error': return 'ERRO AO SALVAR';
-      default: return 'SALVAR PROJETO';
-    }
-  };
-
-  const getSaveButtonClass = () => {
-    switch (saveStatus) {
-      case 'saving': return 'bg-yellow-500 border-yellow-700 animate-pulse';
-      case 'success': return 'bg-green-500 border-green-700';
-      case 'error': return 'bg-red-500 border-red-700';
-      default: return 'bg-blue-600 border-blue-800 hover:bg-blue-700';
-    }
-  };
-
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-12 font-sans text-slate-900">
+    <div className="min-h-screen bg-slate-50 pb-12 font-sans text-slate-900 flex flex-col">
       <header className="bg-gradient-to-r from-blue-950 to-blue-800 text-white shadow-lg mb-8 border-b-4 border-blue-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row justify-between items-center gap-5">
           <div className="flex items-center gap-4">
@@ -199,14 +215,16 @@ const App: React.FC = () => {
             </button>
 
             <button
-              onClick={handleSaveProject}
-              disabled={saveStatus === 'saving' || (!result && Object.keys(fullDocument).length === 0)}
-              className={`text-white px-5 py-2.5 rounded-lg font-bold text-sm uppercase border-b-3 flex items-center gap-2 transition-all shadow-md active:scale-95 whitespace-nowrap ${getSaveButtonClass()}`}
+              onClick={handleExportPdf}
+              disabled={pdfLoading || Object.keys(fullDocument).length === 0}
+              className={`text-white px-5 py-2.5 rounded-lg font-bold text-sm uppercase border-b-3 flex items-center gap-2 transition-all shadow-md active:scale-95 whitespace-nowrap 
+                ${pdfLoading ? 'bg-yellow-500 border-yellow-700 animate-pulse' : 'bg-green-600 border-green-800 hover:bg-green-700'}`
+              }
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              {getSaveButtonText()}
+              {pdfLoading ? 'GERANDO PDF...' : 'EXTRAIR MINUTA PDF'}
             </button>
 
             <div className="flex items-center gap-2 text-sm bg-white/15 px-4 py-2 rounded-full border border-white/30 backdrop-blur-sm shadow-inner">
@@ -220,7 +238,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 h-full">
         <div className="lg:col-span-5 space-y-7">
           <InputSection
             data={formData}
@@ -253,7 +271,7 @@ const App: React.FC = () => {
           )}
         </div>
 
-        <div className="lg:col-span-7 h-[calc(100vh-140px)] sticky top-6">
+        <div className="lg:col-span-7 h-full">
           <OutputSection 
             result={result} 
             chatHistory={chatHistory} 
