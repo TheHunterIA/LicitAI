@@ -4,6 +4,7 @@ export enum TargetField {
   JUSTIFICATIVA = 'Justificativa de Contratação',
   ETP = 'Estudo Técnico Preliminar (ETP)',
   TR = 'Termo de Referência (TR)',
+  MAPA_COMPARATIVO = 'Mapa Comparativo de Preços',
   CONDICOES_GERAIS = 'Condições Gerais da Contratação',
   MODELO_EXECUCAO = 'Modelo de Execução e Gestão',
   ESPECIFICACAO = 'Especificação Técnica do Item',
