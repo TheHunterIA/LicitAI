@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse, Part } from "@google/genai";
 import { ContextData, ChatMessage, FullDocument, FileData } from "../types";
 
@@ -17,24 +16,16 @@ REGRAS DE FORMATAÇÃO:
 - Utilize MARKDOWN e TABELAS MARKDOWN.
 - Responda EXCLUSIVAMENTE em formato JSON.`;
 
-/**
- * Helper para processar arquivos e separar o que vai como inlineData 
- * do que deve ser injetado como texto no prompt.
- */
 const processFilesForGemini = (files: FileData[]) => {
-  // Store inline data with original file name for potential textual description
   const inlineDataParts: { inlineData: { mimeType: string; data: string }, name: string }[] = [];
   let extractedText = "";
-
   files.forEach(f => {
-    // Tipos suportados oficialmente por inlineData
     if (f.mimeType === 'application/pdf' || f.mimeType.startsWith('image/')) {
       inlineDataParts.push({
         inlineData: { mimeType: f.mimeType, data: f.data },
-        name: f.name // Store the original file name
+        name: f.name
       });
-    } 
-    // Tentativa de leitura de arquivos baseados em texto (CSV, TXT)
+    }
     else if (f.mimeType.includes('text/') || f.mimeType.includes('csv') || f.name.endsWith('.csv') || f.name.endsWith('.txt')) {
       try {
         const decoded = atob(f.data);
@@ -43,12 +34,10 @@ const processFilesForGemini = (files: FileData[]) => {
         extractedText += `\n\n(Erro ao ler conteúdo textual do arquivo: ${f.name})`;
       }
     }
-    // Formatos binários não suportados (XLS, XLSX, ODS)
     else {
       extractedText += `\n\n(Aviso: O arquivo binário "${f.name}" foi anexado pelo usuário. Você não pode ler o conteúdo bruto binário deste formato. Peça ao usuário que exporte para PDF ou cole os dados se necessário.)`;
     }
   });
-
   return { inlineDataParts, extractedText };
 };
 
@@ -58,9 +47,9 @@ const parseAIResponse = (response: GenerateContentResponse) => {
     const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
     return JSON.parse(cleaned);
   } catch (e) {
-    return { 
-      rascunho_tecnico: "", 
-      notas_do_especialista: "Erro na formatação da resposta da IA. Tente simplificar os dados." 
+    return {
+      rascunho_tecnico: "",
+      notas_do_especialista: "Erro na formatação da resposta da IA. Tente simplificar os dados."
     };
   }
 };
@@ -81,10 +70,8 @@ export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocum
 [TÓPICO]: ${data.topic || "Geral"}
 [ITENS INFORMADOS]: ${data.itemsInfo}
 ${extractedText}
-
 [MINUTA ATUAL]:
 ${docSummary || "Documento em branco."}
-
 COMANDO: Redija o rascunho técnico para a seção "${data.target}".`;
 
   try {
@@ -92,7 +79,7 @@ COMANDO: Redija o rascunho técnico para a seção "${data.target}".`;
       model: "gemini-3-pro-preview",
       contents: [{
         role: 'user',
-        parts: [{ text: prompt }, ...inlineDataParts.map(p => ({ inlineData: p.inlineData }))] 
+        parts: [{ text: prompt }, ...inlineDataParts.map(p => ({ inlineData: p.inlineData }))]
       }],
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
@@ -122,9 +109,11 @@ COMANDO: Redija o rascunho técnico para a seção "${data.target}".`;
 };
 
 export const sendChatMessage = async (
-  message: string, 
-  history: ChatMessage[], 
+  message: string,
+  history: ChatMessage[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   context: ContextData,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   currentDraft: string | null,
   fullDoc: FullDocument,
   newFiles?: FileData[]
@@ -134,14 +123,11 @@ export const sendChatMessage = async (
     .map(([field, text]) => `### ${field}:\n${text}`)
     .join("\n\n");
 
-  // Processa os novos arquivos do chat para a mensagem atual
   const chatFiles = [...(newFiles || [])];
   const { inlineDataParts, extractedText } = processFilesForGemini(chatFiles);
 
-  // Construct the message string, including textual descriptions of attached files
   let messageText = `${message}\n${extractedText}`;
-  
-  // Add textual descriptions for files that would have been inlineDataParts
+
   if (inlineDataParts.length > 0) {
     messageText += "\n\n--- ANEXOS DO USUÁRIO (referência textual para a IA) ---";
     inlineDataParts.forEach(part => {
@@ -159,7 +145,6 @@ export const sendChatMessage = async (
         thinkingConfig: { thinkingBudget: 16384 },
         responseMimeType: "application/json",
       },
-      // Correctly map history to include user files as parts if present
       history: history.flatMap(m => {
         const parts: Part[] = [{ text: m.text }];
         if (m.files && m.files.length > 0) {
@@ -176,10 +161,10 @@ export const sendChatMessage = async (
     const currentMessageParts: Part[] = [{ text: messageText }];
     currentMessageParts.push(...inlineDataParts.map(p => ({ inlineData: p.inlineData })));
 
-    const response = await chat.sendMessage({ 
-      message: currentMessageParts 
+    const response = await chat.sendMessage({
+      message: currentMessageParts
     });
-    
+
     const parsed = parseAIResponse(response);
     return parsed.notas_do_especialista || parsed.rascunho_tecnico || "Resposta processada.";
   } catch (error) {
