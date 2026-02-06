@@ -1,27 +1,13 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ContextData, ChatMessage, FullDocument } from "../types";
 
-// 1. Inicialização correta com o nome da classe importada
+// Verifique se no arquivo package.json a biblioteca é @google/generative-ai
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
 
-// 2. Modelo definido como 2.5 Flash conforme sua solicitação
+// Modelo 2.5 Flash conforme sua certeza absoluta
 const MODEL_NAME = "gemini-2.5-flash";
 
-const SYSTEM_PROMPT = `VOCÊ É O DR. LICITAI COMMAND v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.
-Sua missão é redigir minutas jurídicas impecáveis seguindo a MODALIDADE DE LICITAÇÃO selecionada.
-
-DIRETRIZES:
-1. LEI 14.133/21: Use exclusivamente a Nova Lei de Licitações.
-2. MODALIDADE: Adapte o rito conforme a escolha (Pregão, Concorrência, etc.).
-3. FORMATO: Responda obrigatoriamente em JSON estruturado.
-4. ESTILO: Jurídico-administrativo sênior, numeração decimal, alta precisão.
-
-JSON SCHEMA:
-{
-  "rascunho_tecnico": "Markdown do texto completo.",
-  "analise_juridica": "Seu parecer consultivo.",
-  "nivel_risco": "BAIXO | MODERADO | ALTO"
-}`;
+const SYSTEM_PROMPT = `VOCÊ É O DR. LICITAI COMMAND v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.`;
 
 const parseAIResponse = (text: string) => {
   try {
@@ -38,14 +24,7 @@ export const generateInitialDraft = async (data: ContextData, _fullDoc: FullDocu
     systemInstruction: SYSTEM_PROMPT 
   });
 
-  const prompt = `
-  Fase: ${data.phase}
-  Modalidade: ${data.modality}
-  Documento: ${data.target}
-  Objeto: ${data.objectAndPurpose}
-  Contexto Técnico: ${data.itemsInfo}
-  
-  Gere a minuta oficial respeitando os requisitos da modalidade ${data.modality}.`;
+  const prompt = `Fase: ${data.phase} | Objeto: ${data.objectAndPurpose}`;
 
   const result = await model.generateContent(prompt);
   const response = await result.response;
@@ -53,14 +32,14 @@ export const generateInitialDraft = async (data: ContextData, _fullDoc: FullDocu
   
   return { 
     draft: res.rascunho_tecnico, 
-    commentary: `### ⚖️ PARECER JURÍDICO [RISCO: ${res.nivel_risco}]\n${res.analise_juridica}` 
+    commentary: `### ⚖️ PARECER JURÍDICO\n${res.analise_juridica}` 
   };
 };
 
 export const sendChatMessage = async (msg: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, _fullDoc: FullDocument): Promise<string> => {
   const model = genAI.getGenerativeModel({ 
     model: MODEL_NAME,
-    systemInstruction: `${SYSTEM_PROMPT}\n\nModalidade Atual: ${context.modality}\nMinuta Atual: ${currentDraft}`
+    systemInstruction: `${SYSTEM_PROMPT}\n\nModalidade Atual: ${context.modality}`
   });
 
   const chat = model.startChat({
