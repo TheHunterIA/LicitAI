@@ -1,10 +1,13 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ContextData, ChatMessage, FullDocument } from "../types";
 
-// Use EXATAMENTE este formato para que o Vite capture a variável da Vercel
-const ai = new GoogleGenAI({ 
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY || "" 
-});
+// 1. Configuração da API Key para Vite/Vercel
+// Certifique-se de que a variável na Vercel se chama VITE_GEMINI_API_KEY
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+
+// 2. Definição do Modelo conforme sua especificação
+const MODEL_NAME = "gemini-2.5-flash";
+
 const SYSTEM_PROMPT = `VOCÊ É O DR. LICITAI COMMAND v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.
 Sua missão é redigir minutas jurídicas impecáveis seguindo a MODALIDADE DE LICITAÇÃO selecionada.
 
@@ -31,9 +34,9 @@ const parseAIResponse = (text: string) => {
 };
 
 export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocument): Promise<{draft: string, commentary: string}> => {
-  // Correção: Uso do modelo gemini-1.5-pro
+  // Inicialização do modelo 2.5 Flash
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-pro",
+    model: MODEL_NAME,
     systemInstruction: SYSTEM_PROMPT 
   });
 
@@ -58,7 +61,7 @@ export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocum
 
 export const sendChatMessage = async (msg: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, fullDoc: FullDocument): Promise<string> => {
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-pro",
+    model: MODEL_NAME,
     systemInstruction: `${SYSTEM_PROMPT}\n\nModalidade Atual: ${context.modality}\nMinuta Atual: ${currentDraft}`
   });
 
