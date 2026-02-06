@@ -1,111 +1,72 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { ContextData, ChatMessage, FullDocument, FileData } from "../types";
+import { GoogleGenAI } from "@google/genai";
+import { ContextData, ChatMessage, FullDocument } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const SYSTEM_INSTRUCTION = `Você é o Dr. LicitAI Command v5.7, a IA mais avançada em Licitações Públicas Brasileiras (Lei 14.133/21).
+const SYSTEM_PROMPT = `VOCÊ É O DR. LICITAI COMMAND v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.
+Sua missão é redigir minutas jurídicas impecáveis seguindo a MODALIDADE DE LICITAÇÃO selecionada.
 
-REGRAS DE OURO DE ESTRUTURA:
-1. HIERARQUIA DECIMAL: Use obrigatoriamente numeração decimal (1., 1.1., 1.1.1.). Nunca pule números.
-2. PADRÃO AGU: Redija cláusulas de "Sanções", "Pagamento" e "Recebimento" seguindo o rigor dos modelos da Advocacia-Geral da União.
-3. TABELAS: Sempre organize itens, quantitativos e preços em tabelas Markdown com bordas (| Item | Qtd |...).
-4. SEM ABREVIAÇÕES: Documento 100% integral. Proibido usar "etc" ou resumos.
-5. OBJETIVIDADE: Linguagem jurídica formal, técnica e marcial.
+DIRETRIZES:
+1. LEI 14.133/21: Use exclusivamente a Nova Lei de Licitações.
+2. MODALIDADE: Adapte o rito conforme a escolha (Pregão, Concorrência, etc.).
+3. FORMATO: Responda obrigatoriamente em JSON estruturado.
+4. ESTILO: Jurídico-administrativo sênior, numeração decimal, alta precisão.
 
-ESTRUTURA DE RESPOSTA (JSON):
+JSON SCHEMA:
 {
-  "rascunho_tecnico": "Texto integral estruturado em Markdown.",
-  "analise_juridica": "Seu parecer consultivo sobre a viabilidade da minuta.",
-  "nivel_risco": "BAIXO | MODERADO | CRÍTICO",
-  "checklist": ["Item X do Art. 6 cumprido", "Cláusula Y da AGU aplicada"]
+  "rascunho_tecnico": "Markdown do texto completo.",
+  "analise_juridica": "Seu parecer consultivo.",
+  "nivel_risco": "BAIXO | MODERADO | ALTO"
 }`;
 
-const processFilesForGemini = (files: FileData[]) => {
-  const parts: any[] = [];
-  let extractedText = "";
-  files.forEach(f => {
-    if (f.mimeType === 'application/pdf' || f.mimeType.startsWith('image/')) {
-      parts.push({ inlineData: { mimeType: f.mimeType, data: f.data } });
-    } else {
-      try {
-        const decoded = atob(f.data);
-        extractedText += `\n\n[DADOS ARQUIVO ${f.name}]:\n${decoded}`;
-      } catch (e) {}
-    }
-  });
-  return { parts, extractedText };
-};
-
-const cleanAndParseJSON = (text: string) => {
+const parseAIResponse = (text: string) => {
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const cleanText = jsonMatch ? jsonMatch[0] : text;
-    return JSON.parse(cleanText);
+    return JSON.parse(jsonMatch ? jsonMatch[0] : text);
   } catch (e) {
-    return { 
-      rascunho_tecnico: text, 
-      analise_juridica: "Parecer gerado sem formatação estruturada.",
-      nivel_risco: "MODERADO",
-      checklist: []
-    };
+    return { rascunho_tecnico: text, analise_juridica: "Falha no parse JSON.", nivel_risco: "ALTO" };
   }
 };
 
 export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocument): Promise<{draft: string, commentary: string}> => {
-  const allFiles = [...(data.itemFiles || []), ...(data.files || [])];
-  const { parts: fileParts, extractedText } = processFilesForGemini(allFiles);
-  
   const prompt = `
-GERAR DOCUMENTO OFICIAL: ${data.target}
-OBJETO: ${data.objectAndPurpose}
-INFORMAÇÕES ADICIONAIS: ${data.itemsInfo}
-${extractedText}
+  Fase: ${data.phase}
+  Modalidade: ${data.modality}
+  Documento: ${data.target}
+  Objeto: ${data.objectAndPurpose}
+  Contexto Técnico: ${data.itemsInfo}
+  
+  Gere a minuta oficial respeitando os requisitos da modalidade ${data.modality}.`;
 
-REQUISITO: Gerar documento INTEGRAL seguindo a Lei 14.133/21 com numeração decimal e tabelas técnicas.`;
+  const response = await ai.models.generateContent({
+    model: "gemini-3-pro-preview",
+    contents: prompt,
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      thinkingConfig: { thinkingBudget: 32000 }
+    },
+  });
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: [{ role: 'user', parts: [{ text: prompt }, ...fileParts] }],
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.1,
-        thinkingConfig: { thinkingBudget: 24000 },
-        responseMimeType: "application/json",
-      },
-    });
-
-    const parsed = cleanAndParseJSON(response.text || "{}");
-    let commentary = `**PARECER DR. LICITAI:**\n${parsed.analise_juridica}\n\n`;
-    if (parsed.checklist?.length > 0) {
-      commentary += `**CHECKLIST LEGAL:**\n${parsed.checklist.map((c: string) => `✅ ${c}`).join('\n')}`;
-    }
-    return { draft: parsed.rascunho_tecnico || "", commentary };
-  } catch (error) { throw error; }
+  const res = parseAIResponse(response.text || "{}");
+  return { 
+    draft: res.rascunho_tecnico, 
+    commentary: `### ⚖️ PARECER JURÍDICO [RISCO: ${res.nivel_risco}]\n${res.analise_juridica}` 
+  };
 };
 
-export const sendChatMessage = async (
-  message: string, 
-  history: ChatMessage[], 
-  context: ContextData,
-  currentDraft: string | null,
-  fullDoc: FullDocument,
-  newFiles?: FileData[]
-): Promise<string> => {
-  const { parts: fileParts, extractedText } = processFilesForGemini(newFiles || []);
-  try {
-    const chat = ai.chats.create({
-      model: "gemini-3-pro-preview",
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION + "\n\nCONTEXTO:\n" + (currentDraft || "") + "\n\nDOSSIÊ:\n" + JSON.stringify(fullDoc),
-        temperature: 0.2,
-        thinkingConfig: { thinkingBudget: 12000 },
-        responseMimeType: "application/json",
-      }
-    });
-    const response = await chat.sendMessage({ message: [{ text: message + extractedText }, ...fileParts] });
-    const parsed = cleanAndParseJSON(response.text || "{}");
-    return `${parsed.analise_juridica || parsed.rascunho_tecnico}\n\n**RISCO:** ${parsed.nivel_risco}`;
-  } catch (error) { return "Erro no sistema de consultoria."; }
+export const sendChatMessage = async (msg: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, fullDoc: FullDocument): Promise<string> => {
+  const chat = ai.chats.create({
+    model: "gemini-3-pro-preview",
+    config: {
+      systemInstruction: `${SYSTEM_PROMPT}\n\nModalidade Atual: ${context.modality}\nMinuta Atual: ${currentDraft}`,
+      temperature: 0.2,
+      responseMimeType: "application/json"
+    }
+  });
+  const res = await chat.sendMessage({ message: msg });
+  const parsed = parseAIResponse(res.text || "{}");
+  return parsed.rascunho_tecnico || parsed.analise_juridica;
 };

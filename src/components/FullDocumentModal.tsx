@@ -8,9 +8,12 @@ interface FullDocumentModalProps {
   doc: FullDocument;
   onClose: () => void;
   onClear: () => void;
+  // Added theme prop to match usage in App.tsx
+  theme?: 'dark' | 'light';
 }
 
-const FullDocumentModal: React.FC<FullDocumentModalProps> = ({ doc, onClose, onClear }) => {
+// Destructure theme from props with default value
+const FullDocumentModal: React.FC<FullDocumentModalProps> = ({ doc, onClose, onClear, theme = 'dark' }) => {
   const [copied, setCopied] = useState(false);
   const sections = Object.entries(doc) as [TargetField, string][];
 
@@ -54,7 +57,8 @@ const FullDocumentModal: React.FC<FullDocumentModalProps> = ({ doc, onClose, onC
                   <div className="absolute -top-6 left-10 bg-blue-950 text-white px-6 py-2 rounded-md text-[10px] font-black uppercase tracking-widest shadow-xl border border-blue-800">
                     {field}
                   </div>
-                  <MarkdownRenderer text={content} />
+                  {/* Pass theme to MarkdownRenderer */}
+                  <MarkdownRenderer text={content} theme={theme} />
                 </section>
               ))}
             </div>

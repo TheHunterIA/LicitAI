@@ -1,88 +1,86 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { ContextData, ChatMessage, FullDocument, FileData } from "../types";
+import { GoogleGenAI } from "@google/genai";
+import { ContextData, ChatMessage, FullDocument } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const CATMAT_DATABASE = `
-BASE CATMAT (Códigos Essenciais):
-Água Sanitária: 299605, Álcool Gel: 380018, Apontador: 468205, Balde: 321573, Borracha: 483433, Caneta Azul: 462546, Caneta Preta: 432816, Marcador Amarelo: 486374, Toner HP 283A: 429777, Detergente: 386806, Desinfetante: 473431, Papel A4: 471762, Papel Higiênico: 443004, Sabonete Líquido: 472873, Copo 200ml: 618310, Copo 50ml: 254007, Saco Lixo 100L: 470833.
-`;
+const SYSTEM_INSTRUCTION = `Você é o DR. LICITAI COMMAND v14.0. 
+Você é um Especialista Sênior em Direito Administrativo e Licitações Públicas (Lei 14.133/2021).
 
-const SYSTEM_INSTRUCTION = `Você é o LicitAI Command v9.0, Especialista em Licitações (Lei 14.133/21).
+Sua missão é redigir minutas técnicas e jurídicas de ALTA PERFORMANCE para o Governo Federal.
 
-REGRAS OBRIGATÓRIAS:
-1. RESPONDA APENAS EM JSON.
-2. TABELAS: Use Markdown (| Item | Especificação | CATMAT | Qtd | Unidade |).
-3. NUMERAÇÃO: Use estritamente 1., 1.1., 1.1.1.
-4. CATMAT: Aplique os códigos da base fornecida.
+DIRETRIZES TÉCNICAS INEGOCIÁVEIS:
+1. LEI 14.133/21: Use APENAS termos da Nova Lei. Nunca cite Lei 8.666/93 ou 10.520/02.
+2. MODALIDADE ESPECÍFICA: Adapte o texto rigorosamente à modalidade escolhida (ex: Pregão exige critério de julgamento menor preço ou maior desconto).
+3. ESTRUTURA NORMATIVA: Use numeração decimal rígida (1., 1.1., 1.1.1.).
+4. PADRÃO AGU: Siga os modelos da Advocacia-Geral da União. 
 
-ESTRUTURA JSON:
+FORMATO DE RESPOSTA (JSON):
 {
-  "rascunho_tecnico": "Texto Markdown da minuta.",
-  "analise_juridica": "Parecer técnico conciso.",
-  "nivel_risco": "BAIXO | MODERADO | CRÍTICO",
-  "sugestoes": ["Ação 1", "Ação 2"]
-}
-
-${CATMAT_DATABASE}`;
+  "rascunho_tecnico": "Markdown do documento completo.",
+  "analise_juridica": "Parecer consultivo sobre riscos.",
+  "nivel_risco": "BAIXO | MODERADO | ALTO",
+  "checklist_conformidade": ["Lista de requisitos atendidos"]
+}`;
 
 const cleanAndParseJSON = (text: string) => {
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const cleaned = jsonMatch ? jsonMatch[0] : text;
-    return JSON.parse(cleaned);
+    return JSON.parse(jsonMatch ? jsonMatch[0] : text);
   } catch (e) {
-    // Fallback para quando a quota corta a resposta no meio
     return { 
-      rascunho_tecnico: text.replace(/[{}]/g, ''), 
-      analise_juridica: "Resposta parcial devido ao limite de tráfego.",
-      nivel_risco: "MODERADO",
-      sugestoes: ["Aguarde 60 segundos e tente atualizar esta seção."]
+      rascunho_tecnico: text, 
+      analise_juridica: "Erro no processamento da estrutura.",
+      nivel_risco: "ALTO",
+      checklist_conformidade: []
     };
   }
 };
 
 export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocument): Promise<{draft: string, commentary: string}> => {
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: [{ role: 'user', parts: [{ text: `GERAR ${data.target} PARA: ${data.objectAndPurpose}. ITENS: ${data.itemsInfo}.` }] }],
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.1,
-        // Reduzido para economizar quota (tokens/minuto)
-        thinkingConfig: { thinkingBudget: 4000 }, 
-        responseMimeType: "application/json",
-      },
-    });
+  const prompt = `
+  FASE DO PROCESSO: ${data.phase}
+  MODALIDADE ESCOLHIDA: ${data.modality}
+  DOCUMENTO A GERAR: ${data.target}
+  OBJETO: ${data.objectAndPurpose}
+  MATRIZ DE ITENS: ${data.itemsInfo}
+  
+  Redija a minuta INTEGRAL respeitando o rito da modalidade ${data.modality}.`;
 
-    const parsed = cleanAndParseJSON(response.text || "{}");
-    const commentary = `### 🛡️ ANÁLISE [RISCO: ${parsed.nivel_risco}]\n${parsed.analise_juridica}\n\n**SUGESTÕES:**\n${parsed.sugestoes?.map((s: string) => `- ${s}`).join('\n') || ''}`;
-    return { draft: parsed.rascunho_tecnico || "", commentary };
-  } catch (error: any) {
-    if (error.message?.includes('429')) {
-      throw new Error("LIMITE DE QUOTA ATINGIDO: A chave de API atingiu o limite de requisições. Aguarde 60 segundos para a próxima operação.");
-    }
-    throw error;
-  }
+  const response = await ai.models.generateContent({
+    model: "gemini-3-pro-preview",
+    contents: prompt,
+    config: {
+      systemInstruction: SYSTEM_INSTRUCTION,
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      thinkingConfig: { thinkingBudget: 32000 }
+    },
+  });
+
+  const parsed = cleanAndParseJSON(response.text || "{}");
+  const commentary = `### ⚖️ PARECER [RISCO: ${parsed.nivel_risco}]\n${parsed.analise_juridica}`;
+  
+  return { draft: parsed.rascunho_tecnico, commentary };
 };
 
-export const sendChatMessage = async (message: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, fullDoc: FullDocument): Promise<string> => {
-  try {
-    const chat = ai.chats.create({
-      model: "gemini-3-pro-preview",
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION + "\n\nCONTEXTO:\n" + JSON.stringify(fullDoc),
-        temperature: 0.2,
-        thinkingConfig: { thinkingBudget: 2000 },
-        responseMimeType: "application/json",
-      }
-    });
-    const response = await chat.sendMessage({ message: [{ text: message }] });
-    const parsed = cleanAndParseJSON(response.text || "{}");
-    return parsed.rascunho_tecnico || parsed.analise_juridica || "Comando processado.";
-  } catch (error: any) {
-    return "O servidor está sobrecarregado (Erro 429). Por favor, aguarde um minuto antes de enviar nova mensagem.";
-  }
+export const sendChatMessage = async (
+  message: string, 
+  history: ChatMessage[], 
+  context: ContextData, 
+  currentDraft: string | null, 
+  fullDoc: FullDocument
+): Promise<string> => {
+  const chat = ai.chats.create({
+    model: "gemini-3-pro-preview",
+    config: {
+      systemInstruction: `${SYSTEM_INSTRUCTION}\n\nMODALIDADE ATUAL: ${context.modality}\nMINUTA: ${currentDraft}`,
+      temperature: 0.2,
+      responseMimeType: "application/json"
+    }
+  });
+  
+  const response = await chat.sendMessage({ message: message });
+  const parsed = cleanAndParseJSON(response.text || "{}");
+  return parsed.rascunho_tecnico || parsed.analise_juridica;
 };

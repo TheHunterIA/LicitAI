@@ -10,27 +10,23 @@ interface MarkdownRendererProps {
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text, isPaper = true, theme = 'dark' }) => {
   if (!text) return null;
 
-  // Limpeza de possíveis resíduos de JSON se a IA falhar
-  const sanitizedText = text.replace(/^```json/, '').replace(/```$/, '').trim();
-
-  const lines = sanitizedText.split('\n');
+  const lines = text.split('\n');
   const rendered = [];
   let currentTable: string[][] = [];
   let inTable = false;
 
   const flushTable = (key: string) => {
-    if (currentTable.length < 1) return null;
-    // Se a tabela estiver incompleta (apenas header), tenta fechar
+    if (currentTable.length === 0) return null;
     const table = (
-      <div key={key} className="my-6 overflow-x-auto rounded border border-slate-900 shadow-md">
-        <table className="w-full border-collapse bg-white text-[12px]">
+      <div key={key} className="my-8 overflow-x-auto rounded border-2 border-slate-900 shadow-lg">
+        <table className="w-full border-collapse bg-white text-[11px]">
           <thead>
             <tr className="bg-slate-900 text-white">
-              {currentTable[0]?.map((cell, idx) => (
-                <th key={idx} className="p-3 text-left font-black uppercase tracking-widest border border-white/10">
+              {currentTable[0].map((cell, idx) => (
+                <th key={idx} className="p-3 text-left font-black uppercase tracking-tighter border border-white/20">
                   {cell.trim()}
                 </th>
-              )) || <th>Item</th>}
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -55,7 +51,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text, isPaper = tru
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // Detecção de Tabela
     if (line.startsWith('|')) {
       if (line.includes('---')) continue;
       const cells = line.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
@@ -71,12 +66,11 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text, isPaper = tru
       if (table) rendered.push(table);
     }
 
-    // Títulos (Cláusulas)
     if (line.startsWith('#')) {
       const level = (line.match(/^#+/) || ['#'])[0].length;
       const content = line.replace(/^#+\s*/, '');
       rendered.push(
-        <h3 key={`h-${i}`} className={`font-black uppercase text-blue-950 border-b-2 border-slate-300 pb-2 mb-4 mt-8 tracking-tight ${level === 1 ? 'text-xl' : 'text-lg'}`}>
+        <h3 key={`h-${i}`} className={`font-black uppercase text-blue-950 border-b-2 border-slate-300 pb-2 mb-6 mt-10 tracking-tight ${level === 1 ? 'text-xl' : 'text-lg'}`}>
           {content}
         </h3>
       );
@@ -88,7 +82,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text, isPaper = tru
       continue;
     }
 
-    // Parágrafos e Listas
     const isListItem = /^(\d+\.|[-*])/.test(line);
     const formattedText = line
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold">$1</strong>')
@@ -97,7 +90,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text, isPaper = tru
     rendered.push(
       <p 
         key={`p-${i}`} 
-        className={`text-[14px] leading-relaxed mb-3 text-justify ${isPaper ? 'text-slate-900 font-serif' : 'text-inherit'} ${isListItem ? 'pl-8 border-l-2 border-slate-100' : ''}`}
+        className={`text-[14px] leading-relaxed mb-4 text-justify ${isPaper ? 'text-slate-900 font-serif' : 'text-inherit'} ${isListItem ? 'pl-8 border-l-2 border-slate-100' : ''}`}
         dangerouslySetInnerHTML={{ __html: formattedText }}
       />
     );
