@@ -1,6 +1,12 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, FileData } from '../types';
-import MarkdownRenderer from './MarkdownRenderer'; // Importar o novo componente
+import MarkdownRenderer from './MarkdownRenderer';
+import { 
+  Terminal, Copy, Zap, Send, Paperclip, 
+  ShieldAlert, Activity, ChevronRight, ChevronLeft,
+  Gavel, Info, AlertTriangle, CheckCircle2, RefreshCw
+} from 'lucide-react';
 
 interface OutputSectionProps {
   result: string | null;
@@ -13,148 +19,194 @@ interface OutputSectionProps {
 const OutputSection: React.FC<OutputSectionProps> = ({ result, chatHistory, onSendMessage, chatLoading, onAnalyzeContradictions }) => {
   const [copied, setCopied] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [pendingFiles, setPendingFiles] = useState<FileData[]>([]);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const chatFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
-  const copyToClipboard = () => {
-    if (!result) return;
-    navigator.clipboard.writeText(result);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const handleSend = () => {
-    if ((!chatInput.trim() && pendingFiles.length === 0) || chatLoading) return;
-    onSendMessage(chatInput, pendingFiles.length > 0 ? pendingFiles : undefined);
+    if (!chatInput.trim() || chatLoading) return;
+    onSendMessage(chatInput);
     setChatInput('');
-    setPendingFiles([]);
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve((reader.result as string).split(',')[1]);
-      reader.onerror = reject;
-    });
-  };
-
-  const handleChatFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    const newFiles: FileData[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const base64 = await fileToBase64(file);
-      newFiles.push({ name: file.name, mimeType: file.type, data: base64 });
-    }
-    setPendingFiles(prev => [...prev, ...newFiles]);
-    e.target.value = '';
-  };
-
-  const removePendingFile = (idx: number) => setPendingFiles(prev => prev.filter((_, i) => i !== idx));
-
-  const hasResult = result !== null && result !== "";
+  const quickCommands = [
+    { label: "Auditar Seção", icon: <ShieldAlert className="w-3 h-3"/>, cmd: "Audite esta seção conforme a Lei 14.133/21." },
+    { label: "Prazos AGU", icon: <Activity className="w-3 h-3"/>, cmd: "Verifique se os prazos nesta seção estão em conformidade com as orientações da AGU." },
+    { label: "Sugerir Sanções", icon: <Gavel className="w-3 h-3"/>, cmd: "Sugira cláusulas de sanções administrativas adequadas para este objeto." }
+  ];
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden flex flex-col h-full">
-      {/* Rascunho */}
-      <div className="flex-1 flex flex-col min-h-[30vh] border-b-4 border-slate-100">
-        <div className="bg-slate-100 px-6 py-3 border-b border-slate-200 flex justify-between items-center shrink-0">
-          <span className="text-base font-extrabold text-slate-700 uppercase tracking-widest">Minuta Técnica para o Portal</span>
-          {hasResult && (
-            <button onClick={copyToClipboard} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all transform active:scale-95 shadow-md 
-              ${copied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`
-            }>
-              {copied ? 'COPIADO!' : 'COPIAR PARA O PORTAL'}
-            </button>
-          )}
-        </div>
-        <div className="flex-1 p-6 overflow-auto bg-white">
-          {hasResult ? <MarkdownRenderer text={result} /> : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center uppercase tracking-tighter">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p className="text-xl font-extrabold text-slate-300">Aguardando Redação</p>
+    <div className="flex-1 flex h-full overflow-hidden relative bg-[#020617]">
+      {/* Visualização da Minuta (Paper View) */}
+      <div className={`flex-1 overflow-y-auto p-12 flex justify-center custom-scrollbar transition-all duration-500 ${isPanelOpen ? 'mr-0' : 'mr-0'}`}>
+        <div className="w-full max-w-[800px] bg-white shadow-2xl rounded-sm p-16 md:p-24 relative mb-20 border-t-[12px] border-blue-900 min-h-[1100px]">
+          {/* Header de Documento Oficial */}
+          <div className="border-b-4 border-slate-900 pb-8 mb-12 text-center">
+            <div className="mb-4 flex justify-center opacity-30">
+               <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Coat_of_arms_of_Brazil.svg/1024px-Coat_of_arms_of_Brazil.svg.png" className="h-16 grayscale" alt="Brasão" />
             </div>
+            <p className="text-[10px] font-black uppercase text-slate-500 mb-1 tracking-[0.3em]">Marinha do Brasil</p>
+            <h2 className="text-lg font-black text-slate-900 uppercase">Minuta de Licitação Automática</h2>
+          </div>
+
+          {result ? <MarkdownRenderer text={result} /> : (
+            <div className="h-full flex flex-col items-center justify-center py-40 text-slate-300">
+               <RefreshCw className="w-12 h-12 mb-6 animate-spin opacity-20" />
+               <p className="font-serif italic text-slate-400 text-lg opacity-40">Aguardando injeção de parâmetros táticos...</p>
+            </div>
+          )}
+
+          {/* Botão Flutuante de Cópia */}
+          {result && (
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(result);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+              className={`absolute top-8 right-8 px-6 py-2 rounded-full font-black text-[9px] uppercase tracking-widest shadow-lg transition-all active:scale-95 flex items-center gap-2
+                ${copied ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-500'}`}
+            >
+              <Copy className="w-3 h-3" />
+              {copied ? 'Copiado' : 'Copiar Texto'}
+            </button>
           )}
         </div>
       </div>
 
-      {/* Chat */}
-      <div className="bg-slate-50 flex flex-col max-h-[min(500px,60vh)] shrink-0">
-        <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center bg-white shadow-sm shrink-0">
-          <span className="text-sm font-extrabold text-blue-900 uppercase tracking-wide">Consultoria de Pregoeiro</span>
-          <button onClick={onAnalyzeContradictions} className="text-[10px] bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full font-bold border border-blue-200 uppercase hover:bg-blue-200 transition-colors shadow-sm">Auditagem de Documentos</button>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {chatHistory.map((msg, idx) => (
-            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-md ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-md' : 'bg-slate-100 text-slate-800 rounded-tl-md border border-slate-200'}`}>
-                <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
-                {msg.files && msg.files.length > 0 && (
-                  <div className={`mt-2 flex flex-wrap gap-1 pt-2 ${msg.role === 'user' ? 'border-t border-white/30' : 'border-t border-slate-300'}`}>
-                    {msg.files.map((f, fi) => (
-                      <div key={fi} className={`text-[9px] px-1.5 py-0.5 rounded-full border shadow-inner truncate max-w-[100px] 
-                        ${msg.role === 'user' ? 'bg-white/20 border-white/40 text-white' : 'bg-white border-slate-300 text-slate-700'}`
-                      }>
-                        {f.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-          {chatLoading && <div className="flex justify-start"><span className="h-2 w-8 bg-slate-300 rounded-full animate-pulse"></span></div>}
-          <div ref={chatEndRef} />
-        </div>
+      {/* PAINEL DE CONSULTORIA (SIDEBAR INTEGRADA) */}
+      <div className={`transition-all duration-500 border-l border-white/10 flex flex-col bg-[#020617] relative ${isPanelOpen ? 'w-[450px]' : 'w-12'}`}>
+        {/* Botão de Toggle */}
+        <button 
+          onClick={() => setIsPanelOpen(!isPanelOpen)}
+          className="absolute -left-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-xl hover:bg-blue-500 z-50 transition-transform active:scale-90"
+        >
+          {isPanelOpen ? <ChevronRight className="w-5 h-5"/> : <ChevronLeft className="w-5 h-5"/>}
+        </button>
 
-        {/* Input Chat */}
-        <div className="p-4 bg-slate-100 border-t border-slate-200 shadow-inner shrink-0">
-          {pendingFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3 bg-blue-100 p-2 rounded-lg border border-blue-200 max-h-24 overflow-y-auto shadow-sm">
-              {pendingFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-blue-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm">
-                  <span className="truncate max-w-[120px]">{file.name}</span>
-                  <button onClick={() => removePendingFile(idx)} className="text-white/80 hover:text-white"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
-                </div>
+        {isPanelOpen ? (
+          <>
+            {/* Header do Painel */}
+            <div className="p-6 border-b border-white/5 bg-gradient-to-r from-blue-950/20 to-black/20">
+              <div className="flex items-center gap-3 mb-1">
+                <Terminal className="w-5 h-5 text-blue-400" />
+                <h3 className="text-xs font-black text-white uppercase tracking-widest">Consultoria de Pregoeiro</h3>
+              </div>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Status: Operação Lei 14.133 Ativa</p>
+            </div>
+
+            {/* Comandos Rápidos */}
+            <div className="px-4 py-3 flex gap-2 overflow-x-auto custom-scrollbar no-scrollbar shrink-0 bg-black/40 border-b border-white/5">
+              {quickCommands.map((q, i) => (
+                <button 
+                  key={i} 
+                  onClick={() => onSendMessage(q.cmd)}
+                  className="whitespace-nowrap flex items-center gap-2 px-3 py-1.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-black text-slate-400 hover:text-white hover:bg-blue-600/20 hover:border-blue-500/50 transition-all"
+                >
+                  {q.icon}
+                  {q.label}
+                </button>
               ))}
             </div>
-          )}
-          <div className="flex gap-2">
-            <input type="file" ref={chatFileRef} className="hidden" multiple accept=".pdf,.csv,.txt,image/*" onChange={handleChatFileUpload} />
-            <button 
-              onClick={() => chatFileRef.current?.click()} 
-              className="p-3 bg-slate-200 text-slate-700 rounded-xl border border-slate-300 hover:bg-slate-300 transition-colors shadow-sm active:scale-95"
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-            </button>
-            <input 
-              type="text" 
-              placeholder="Falar com o Especialista (PDF/CSV/TXT/IMG)..." 
-              className="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none text-sm font-medium placeholder:text-slate-400" 
-              value={chatInput} 
-              onChange={(e) => setChatInput(e.target.value)} 
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()} 
-            />
-            <button 
-              onClick={handleSend} 
-              disabled={chatLoading || (!chatInput.trim() && pendingFiles.length === 0)} 
-              className={`bg-blue-700 text-white px-4 rounded-xl shadow-md hover:bg-blue-800 transition-all active:scale-95 ${chatLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-            </button>
+
+            {/* Mensagens */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px]">
+              {chatHistory.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-20 space-y-4">
+                  <Info className="w-12 h-12 text-blue-500" strokeWidth={1} />
+                  <p className="text-[10px] font-black uppercase text-white tracking-widest max-w-[200px]">Inicie a redação para ativar a auditoria jurídica automática</p>
+                </div>
+              )}
+
+              {chatHistory.map((msg, idx) => {
+                const isRiscoCritico = msg.text.includes('CRÍTICO');
+                const isRiscoModerado = msg.text.includes('MODERADO');
+
+                return (
+                  <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div className="flex items-center gap-2 mb-1.5 px-1">
+                      {msg.role === 'model' && (
+                        isRiscoCritico ? <AlertTriangle className="w-3 h-3 text-red-500 animate-pulse"/> :
+                        isRiscoModerado ? <AlertTriangle className="w-3 h-3 text-amber-500"/> :
+                        <CheckCircle2 className="w-3 h-3 text-emerald-500"/>
+                      )}
+                      <span className={`text-[8px] font-black uppercase tracking-widest ${msg.role === 'user' ? 'text-blue-400' : 'text-slate-400'}`}>
+                        {msg.role === 'user' ? 'Comando Externo' : 'Analista LicitAI'}
+                      </span>
+                    </div>
+                    
+                    <div className={`max-w-[95%] px-4 py-3 rounded-xl text-xs leading-relaxed border transition-all ${
+                      msg.role === 'user' 
+                        ? 'bg-blue-600 border-blue-400 text-white rounded-tr-none shadow-lg shadow-blue-900/20' 
+                        : 'bg-white/5 border-white/10 text-slate-200 rounded-tl-none backdrop-blur-md'
+                    }`}>
+                      <div className="prose prose-invert prose-sm max-w-none">
+                        <MarkdownRenderer text={msg.text} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {chatLoading && (
+                <div className="flex flex-col items-start gap-2">
+                  <span className="text-[8px] font-black text-blue-400 animate-pulse uppercase">Varrendo Base Normativa...</span>
+                  <div className="flex gap-1.5 p-3 bg-white/5 rounded-full">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:0.1s]"></div>
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input de Comando */}
+            <div className="p-6 bg-black/40 border-t border-white/5">
+              <div className="relative flex items-center bg-slate-900/60 rounded-xl border border-white/10 focus-within:border-blue-500 transition-all">
+                <input 
+                  type="text" 
+                  placeholder="DIGITE UM COMANDO JURÍDICO..." 
+                  className="flex-1 bg-transparent text-white font-bold text-[11px] px-4 py-4 outline-none placeholder:text-slate-600 uppercase tracking-widest" 
+                  value={chatInput} 
+                  onChange={(e) => setChatInput(e.target.value)} 
+                  onKeyDown={(e) => e.key === 'Enter' && handleSend()} 
+                />
+                <div className="flex items-center gap-1 pr-2">
+                  <button className="p-2 text-slate-500 hover:text-blue-400 transition-colors">
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={handleSend}
+                    disabled={chatLoading || !chatInput.trim()}
+                    className={`p-2.5 rounded-lg text-white transition-all ${chatLoading || !chatInput.trim() ? 'bg-slate-800 opacity-20' : 'bg-blue-600 hover:bg-blue-500 active:scale-90'}`}
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-between items-center px-1">
+                <span className="text-[7px] font-black text-slate-600 uppercase tracking-[0.2em]">Criptografia Nível Militar Ativa</span>
+                <span className="text-[7px] font-black text-blue-500 uppercase tracking-[0.1em]">v2.5 // CMD_CENTRAL</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center py-8 gap-8">
+            <Terminal className="w-5 h-5 text-slate-700" />
+            <div className="[writing-mode:vertical-lr] text-[10px] font-black uppercase text-slate-700 tracking-[0.5em] rotate-180">
+              MODO CONSOLE
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 };

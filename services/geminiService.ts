@@ -1,173 +1,111 @@
-import { GoogleGenAI, Type, GenerateContentResponse, Part } from "@google/genai";
+
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ContextData, ChatMessage, FullDocument, FileData } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const SYSTEM_INSTRUCTION = `Você é o LicitAI, um Consultor Jurídico Sênior e Pregoeiro especializado em Contratações Públicas Federais, com foco absoluto na Marinha do Brasil (MB). 
+const SYSTEM_INSTRUCTION = `Você é o Dr. LicitAI Command v5.7, a IA mais avançada em Licitações Públicas Brasileiras (Lei 14.133/21).
 
-Sua missão é redigir documentos para o portal Compras.gov.br seguindo a Lei 14.133/2021.
+REGRAS DE OURO DE ESTRUTURA:
+1. HIERARQUIA DECIMAL: Use obrigatoriamente numeração decimal (1., 1.1., 1.1.1.). Nunca pule números.
+2. PADRÃO AGU: Redija cláusulas de "Sanções", "Pagamento" e "Recebimento" seguindo o rigor dos modelos da Advocacia-Geral da União.
+3. TABELAS: Sempre organize itens, quantitativos e preços em tabelas Markdown com bordas (| Item | Qtd |...).
+4. SEM ABREVIAÇÕES: Documento 100% integral. Proibido usar "etc" ou resumos.
+5. OBJETIVIDADE: Linguagem jurídica formal, técnica e marcial.
 
-ANÁLISE DE ARQUIVOS:
-- PDFs e Imagens são processados visualmente.
-- Dados de CSV e TXT são injetados no seu contexto de texto.
-- Se receber avisos sobre arquivos XLS/ODS, informe ao usuário que você "vê" o anexo mas, por limitações técnicas do portal, ele deve converter para PDF ou CSV para uma leitura detalhada dos dados.
-
-REGRAS DE FORMATAÇÃO:
-- Utilize MARKDOWN e TABELAS MARKDOWN.
-- Responda EXCLUSIVAMENTE em formato JSON.`;
+ESTRUTURA DE RESPOSTA (JSON):
+{
+  "rascunho_tecnico": "Texto integral estruturado em Markdown.",
+  "analise_juridica": "Seu parecer consultivo sobre a viabilidade da minuta.",
+  "nivel_risco": "BAIXO | MODERADO | CRÍTICO",
+  "checklist": ["Item X do Art. 6 cumprido", "Cláusula Y da AGU aplicada"]
+}`;
 
 const processFilesForGemini = (files: FileData[]) => {
-  const inlineDataParts: { inlineData: { mimeType: string; data: string }, name: string }[] = [];
+  const parts: any[] = [];
   let extractedText = "";
   files.forEach(f => {
     if (f.mimeType === 'application/pdf' || f.mimeType.startsWith('image/')) {
-      inlineDataParts.push({
-        inlineData: { mimeType: f.mimeType, data: f.data },
-        name: f.name
-      });
-    }
-    else if (f.mimeType.includes('text/') || f.mimeType.includes('csv') || f.name.endsWith('.csv') || f.name.endsWith('.txt')) {
+      parts.push({ inlineData: { mimeType: f.mimeType, data: f.data } });
+    } else {
       try {
         const decoded = atob(f.data);
-        extractedText += `\n\n--- CONTEÚDO DO ARQUIVO (${f.name}) ---\n${decoded}\n--- FIM DO ARQUIVO ---`;
-      } catch (e) {
-        extractedText += `\n\n(Erro ao ler conteúdo textual do arquivo: ${f.name})`;
-      }
-    }
-    else {
-      extractedText += `\n\n(Aviso: O arquivo binário "${f.name}" foi anexado pelo usuário. Você não pode ler o conteúdo bruto binário deste formato. Peça ao usuário que exporte para PDF ou cole os dados se necessário.)`;
+        extractedText += `\n\n[DADOS ARQUIVO ${f.name}]:\n${decoded}`;
+      } catch (e) {}
     }
   });
-  return { inlineDataParts, extractedText };
+  return { parts, extractedText };
 };
 
-const parseAIResponse = (response: GenerateContentResponse) => {
+const cleanAndParseJSON = (text: string) => {
   try {
-    const text = response.text || "{}";
-    const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-    return JSON.parse(cleaned);
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const cleanText = jsonMatch ? jsonMatch[0] : text;
+    return JSON.parse(cleanText);
   } catch (e) {
-    return {
-      rascunho_tecnico: "",
-      notas_do_especialista: "Erro na formatação da resposta da IA. Tente simplificar os dados."
+    return { 
+      rascunho_tecnico: text, 
+      analise_juridica: "Parecer gerado sem formatação estruturada.",
+      nivel_risco: "MODERADO",
+      checklist: []
     };
   }
 };
 
 export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocument): Promise<{draft: string, commentary: string}> => {
-  const docSummary = Object.entries(fullDoc)
-    .filter(([_, text]) => !!text && text.trim() !== "")
-    .map(([field, text]) => `[SEÇÃO COMPILADA: ${field}]:\n${text}`)
-    .join("\n\n");
-
   const allFiles = [...(data.itemFiles || []), ...(data.files || [])];
-  const { inlineDataParts, extractedText } = processFilesForGemini(allFiles);
-
+  const { parts: fileParts, extractedText } = processFilesForGemini(allFiles);
+  
   const prompt = `
-[CONTEXTO MB]
-[CAMPO ALVO]: ${data.target}
-[OBJETO]: ${data.objectAndPurpose}
-[TÓPICO]: ${data.topic || "Geral"}
-[ITENS INFORMADOS]: ${data.itemsInfo}
+GERAR DOCUMENTO OFICIAL: ${data.target}
+OBJETO: ${data.objectAndPurpose}
+INFORMAÇÕES ADICIONAIS: ${data.itemsInfo}
 ${extractedText}
-[MINUTA ATUAL]:
-${docSummary || "Documento em branco."}
-COMANDO: Redija o rascunho técnico para a seção "${data.target}".`;
+
+REQUISITO: Gerar documento INTEGRAL seguindo a Lei 14.133/21 com numeração decimal e tabelas técnicas.`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: [{
-        role: 'user',
-        parts: [{ text: prompt }, ...inlineDataParts.map(p => ({ inlineData: p.inlineData }))]
-      }],
+      contents: [{ role: 'user', parts: [{ text: prompt }, ...fileParts] }],
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.1,
-        thinkingConfig: { thinkingBudget: 16384 },
+        thinkingConfig: { thinkingBudget: 24000 },
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            rascunho_tecnico: { type: Type.STRING },
-            notas_do_especialista: { type: Type.STRING },
-          },
-          required: ["rascunho_tecnico", "notas_do_especialista"],
-        },
       },
     });
 
-    const parsed = parseAIResponse(response);
-    return {
-      draft: parsed.rascunho_tecnico || "",
-      commentary: parsed.notas_do_especialista || ""
-    };
-  } catch (error: any) {
-    console.error("Erro na API Gemini:", error);
-    throw error;
-  }
+    const parsed = cleanAndParseJSON(response.text || "{}");
+    let commentary = `**PARECER DR. LICITAI:**\n${parsed.analise_juridica}\n\n`;
+    if (parsed.checklist?.length > 0) {
+      commentary += `**CHECKLIST LEGAL:**\n${parsed.checklist.map((c: string) => `✅ ${c}`).join('\n')}`;
+    }
+    return { draft: parsed.rascunho_tecnico || "", commentary };
+  } catch (error) { throw error; }
 };
 
 export const sendChatMessage = async (
-  message: string,
-  history: ChatMessage[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  message: string, 
+  history: ChatMessage[], 
   context: ContextData,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   currentDraft: string | null,
   fullDoc: FullDocument,
   newFiles?: FileData[]
 ): Promise<string> => {
-  const docSummary = Object.entries(fullDoc)
-    .filter(([_, text]) => !!text && text.trim() !== "")
-    .map(([field, text]) => `### ${field}:\n${text}`)
-    .join("\n\n");
-
-  const chatFiles = [...(newFiles || [])];
-  const { inlineDataParts, extractedText } = processFilesForGemini(chatFiles);
-
-  let messageText = `${message}\n${extractedText}`;
-
-  if (inlineDataParts.length > 0) {
-    messageText += "\n\n--- ANEXOS DO USUÁRIO (referência textual para a IA) ---";
-    inlineDataParts.forEach(part => {
-      messageText += `\n- Arquivo: "${part.name}" (tipo: ${part.inlineData.mimeType})`;
-    });
-    messageText += "\n--- FIM DOS ANEXOS ---";
-  }
-
+  const { parts: fileParts, extractedText } = processFilesForGemini(newFiles || []);
   try {
     const chat = ai.chats.create({
       model: "gemini-3-pro-preview",
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION + "\n\nESTADO DA MINUTA:\n" + docSummary,
+        systemInstruction: SYSTEM_INSTRUCTION + "\n\nCONTEXTO:\n" + (currentDraft || "") + "\n\nDOSSIÊ:\n" + JSON.stringify(fullDoc),
         temperature: 0.2,
-        thinkingConfig: { thinkingBudget: 16384 },
+        thinkingConfig: { thinkingBudget: 12000 },
         responseMimeType: "application/json",
-      },
-      history: history.flatMap(m => {
-        const parts: Part[] = [{ text: m.text }];
-        if (m.files && m.files.length > 0) {
-          const { inlineDataParts: historyInlineData } = processFilesForGemini(m.files);
-          parts.push(...historyInlineData.map(p => ({ inlineData: p.inlineData })));
-        }
-        return {
-          role: m.role === 'user' ? 'user' : 'model',
-          parts: parts
-        };
-      })
+      }
     });
-
-    const currentMessageParts: Part[] = [{ text: messageText }];
-    currentMessageParts.push(...inlineDataParts.map(p => ({ inlineData: p.inlineData })));
-
-    const response = await chat.sendMessage({
-      message: currentMessageParts
-    });
-
-    const parsed = parseAIResponse(response);
-    return parsed.notas_do_especialista || parsed.rascunho_tecnico || "Resposta processada.";
-  } catch (error) {
-    return "Ocorreu um erro ao processar sua solicitação com os anexos fornecidos.";
-  }
+    const response = await chat.sendMessage({ message: [{ text: message + extractedText }, ...fileParts] });
+    const parsed = cleanAndParseJSON(response.text || "{}");
+    return `${parsed.analise_juridica || parsed.rascunho_tecnico}\n\n**RISCO:** ${parsed.nivel_risco}`;
+  } catch (error) { return "Erro no sistema de consultoria."; }
 };

@@ -1,184 +1,120 @@
-
 import React, { useRef } from 'react';
 import { TargetField, ContextData, FileData } from '../types';
-import { Paperclip, Upload } from 'lucide-react'; // Importar ícones do lucide-react
+import { Settings, ShieldCheck, Zap, Paperclip, X } from 'lucide-react';
 
 interface InputSectionProps {
   data: ContextData;
   onChange: (newData: Partial<ContextData>) => void;
   onGenerate: () => void;
   loading: boolean;
+  theme: 'dark' | 'light';
 }
 
-const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate, loading }) => {
-  const itemFileRef = useRef<HTMLInputElement>(null);
-  const refFileRef = useRef<HTMLInputElement>(null);
+const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate, loading, theme }) => {
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-      };
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'itemFiles' | 'files') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-
     const newFiles: FileData[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const base64 = await fileToBase64(file);
-      newFiles.push({ name: file.name, mimeType: file.type, data: base64 });
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        newFiles.push({ name: file.name, mimeType: file.type, data: (reader.result as string).split(',')[1] });
+        if (newFiles.length === files.length) {
+          onChange({ itemFiles: [...(data.itemFiles || []), ...newFiles] });
+        }
+      };
     }
-
-    onChange({ [field]: [...(data[field] || []), ...newFiles] });
-    e.target.value = '';
   };
 
-  const removeFile = (index: number, field: 'itemFiles' | 'files') => {
-    const updated = (data[field] || []).filter((_, i) => i !== index);
-    onChange({ [field]: updated });
+  const removeFile = (index: number) => {
+    const updated = [...(data.itemFiles || [])];
+    updated.splice(index, 1);
+    onChange({ itemFiles: updated });
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-7 space-y-6">
-      <div>
-        <label className="block text-sm font-black text-slate-800 mb-2 uppercase tracking-wide">
-          1. OBJETO E FINALIDADE DA LICITAÇÃO
-        </label>
-        <textarea
-          placeholder="Ex: Aquisição de gêneros alimentícios para o rancho..."
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg h-28 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
-          value={data.objectAndPurpose}
-          onChange={(e) => onChange({ objectAndPurpose: e.target.value })}
-        />
+    <div className="space-y-10">
+      <div className={`flex items-center gap-3 pb-4 border-b ${theme === 'dark' ? 'text-blue-500 border-white/5' : 'text-blue-600 border-slate-200'}`}>
+        <Settings className="w-5 h-5" />
+        <span className="text-xs font-black uppercase tracking-[0.3em]">Parametrização</span>
       </div>
 
-      <div>
-        <label className="block text-sm font-black text-slate-800 mb-2 uppercase tracking-wide">
-          2. DOCUMENTO ALVO (Referência)
-        </label>
-        <select
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none transition-all text-slate-800 bg-white font-medium cursor-pointer"
-          value={data.target}
-          onChange={(e) => onChange({ target: e.target.value as TargetField })}
-        >
-          {Object.values(TargetField).map((field) => (
-            <option key={field} value={field}>{field}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="space-y-3">
-        <label className="block text-sm font-black text-slate-800 uppercase tracking-wide flex justify-between">
-          <span>DESCRIÇÃO DOS ITENS / LOTES</span>
-        </label>
-        <textarea
-          placeholder="Digite ou anexe a planilha de itens abaixo."
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg h-36 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none resize-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
-          value={data.itemsInfo}
-          onChange={(e) => onChange({ itemsInfo: e.target.value })}
-        />
-        
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-inner">
-          <input 
-            type="file" 
-            ref={itemFileRef} 
-            className="hidden" 
-            multiple 
-            accept=".csv,.pdf,.txt,image/*" 
-            onChange={(e) => handleFileUpload(e, 'itemFiles')} 
+      <div className="space-y-8">
+        <div>
+          <label className={`text-[10px] font-black uppercase mb-3 block tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>01. Objeto Central</label>
+          <textarea
+            className={`w-full border rounded-2xl p-5 text-sm outline-none transition-all h-28 resize-none font-medium ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white focus:border-blue-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-400'}`}
+            placeholder="Descreva o alvo da licitação..."
+            value={data.objectAndPurpose}
+            onChange={(e) => onChange({ objectAndPurpose: e.target.value })}
           />
-          <button 
-            onClick={() => itemFileRef.current?.click()}
-            className="flex items-center gap-2 text-xs font-black text-slate-700 hover:bg-slate-100 p-2 rounded-md transition-all border border-transparent hover:border-slate-300 group"
-          >
-            <Paperclip className="h-4 w-4 text-blue-600 group-hover:text-blue-700" strokeWidth={2.5}/>
-            ANEXAR ITENS (PDF/CSV/TXT/IMG)
-          </button>
-          
-          {data.itemFiles && data.itemFiles.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {data.itemFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-green-600 text-white text-[9px] font-bold px-2 py-1 rounded-full shadow-sm">
-                  <span className="truncate max-w-[100px]">{file.name}</span>
-                  <button onClick={() => removeFile(idx, 'itemFiles')} className="text-white/80 hover:text-white"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
 
-      <div>
-        <label className="block text-sm font-black text-slate-800 mb-2 uppercase tracking-wide">
-          TÓPICO / CAMPO DO SISTEMA
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: Qualificação Técnica"
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none transition-all bg-white text-slate-800 font-medium placeholder:text-slate-400"
-          value={data.topic}
-          onChange={(e) => onChange({ topic: e.target.value })}
-        />
-      </div>
+        <div>
+          <label className={`text-[10px] font-black uppercase mb-3 block tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>02. Documento Alvo</label>
+          <div className="relative">
+            <select
+              className={`w-full border rounded-2xl p-5 text-sm font-black appearance-none outline-none transition-all cursor-pointer ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white focus:border-blue-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-400'}`}
+              value={data.target}
+              onChange={(e) => onChange({ target: e.target.value as TargetField })}
+            >
+              {Object.values(TargetField).map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <Zap className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+          </div>
+        </div>
 
-      <div className="space-y-3">
-        <label className="block text-sm font-black text-slate-800 uppercase tracking-wide">
-          3. INTERAÇÃO E REFERÊNCIAS
-        </label>
-        <textarea
-          placeholder="Modelos de editais, normas adicionais ou instruções."
-          className="w-full px-4 py-3 border border-slate-300 rounded-lg h-28 focus:ring-2 focus:ring-blue-400 focus:focus:border-blue-500 outline-none resize-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
-          value={data.interaction}
-          onChange={(e) => onChange({ interaction: e.target.value })}
-        />
-        
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-inner">
-          <input 
-            type="file" 
-            ref={refFileRef} 
-            className="hidden" 
-            multiple 
-            accept=".pdf,.csv,.txt,image/*"
-            onChange={(e) => handleFileUpload(e, 'files')} 
-          />
-          <button 
-            onClick={() => refFileRef.current?.click()}
-            className="flex items-center gap-2 text-xs font-black text-slate-700 hover:bg-slate-100 p-2 rounded-md transition-all border border-transparent hover:border-slate-300 group"
-          >
-            <Upload className="h-4 w-4 text-purple-600 group-hover:text-purple-700" strokeWidth={2.5}/>
-            ANEXAR REFERÊNCIAS (PDF/CSV/TXT/IMG)
-          </button>
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            <label className={`text-[10px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>03. Contexto & Anexos</label>
+            <button onClick={() => fileRef.current?.click()} className="flex items-center gap-2 text-[9px] font-black text-blue-500 hover:text-blue-400 uppercase">
+              <Paperclip className="w-3 h-3" />
+              Upload
+            </button>
+          </div>
           
-          {data.files && data.files.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {data.files.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-blue-700 text-white text-[9px] font-bold px-2 py-1 rounded-full shadow-sm">
-                  <span className="truncate max-w-[100px]">{file.name}</span>
-                  <button onClick={() => removeFile(idx, 'files')} className="text-white/80 hover:text-white"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
+          <input type="file" ref={fileRef} className="hidden" multiple onChange={handleFileUpload} />
+
+          {data.itemFiles && data.itemFiles.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {data.itemFiles.map((f, i) => (
+                <div key={i} className={`flex items-center justify-between border rounded-lg px-3 py-2 ${theme === 'dark' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
+                  <span className="text-[9px] font-bold text-blue-500 truncate max-w-[150px]">{f.name}</span>
+                  <button onClick={() => removeFile(i)} className="text-slate-400 hover:text-red-500"><X className="w-3 h-3" /></button>
                 </div>
               ))}
             </div>
           )}
+
+          <textarea
+            className={`w-full border rounded-2xl p-5 text-sm outline-none transition-all h-32 resize-none font-medium ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white focus:border-blue-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-400'}`}
+            placeholder="Matriz de itens ou dados extras..."
+            value={data.itemsInfo}
+            onChange={(e) => onChange({ itemsInfo: e.target.value })}
+          />
         </div>
       </div>
 
       <button
         onClick={onGenerate}
         disabled={loading}
-        className={`w-full py-5 rounded-lg font-black text-xl text-white transition-all transform active:scale-95 shadow-xl border-b-4 
-          ${loading ? 'bg-slate-500 border-slate-700 animate-pulse' : 'bg-gradient-to-r from-blue-700 to-blue-800 border-blue-900 hover:from-blue-800 hover:to-blue-900'}`
-        }
+        className={`w-full py-6 rounded-2xl font-black text-[11px] uppercase tracking-[0.4em] transition-all border-b-4 
+          ${loading ? 'bg-slate-400 border-slate-500 text-white animate-pulse' : 'bg-blue-600 border-blue-800 text-white hover:bg-blue-500 shadow-xl active:translate-y-1 active:border-b-0'}`}
       >
-        {loading ? 'PROCESSANDO...' : 'GERAR TEXTO PARA O PORTAL'}
+        {loading ? 'Sincronizando...' : 'Gerar Redação'}
       </button>
+
+      <div className={`border rounded-2xl p-6 flex items-start gap-4 ${theme === 'dark' ? 'bg-blue-900/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
+        <ShieldCheck className="w-6 h-6 text-blue-600 shrink-0" />
+        <div>
+          <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Rede Protegida</p>
+          <p className={`text-[9px] leading-relaxed ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>Protocolos de segurança e sigilo administrativo ativos.</p>
+        </div>
+      </div>
     </div>
   );
 };

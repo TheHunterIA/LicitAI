@@ -1,6 +1,7 @@
+
 import React, { useRef } from 'react';
 import { TargetField, ContextData, FileData } from '../types';
-import { Paperclip, Upload } from 'lucide-react'; // Importar ícones do lucide-react
+import { Database, FileText, Settings, ShieldCheck } from 'lucide-react';
 
 interface InputSectionProps {
   data: ContextData;
@@ -11,173 +12,95 @@ interface InputSectionProps {
 
 const InputSection: React.FC<InputSectionProps> = ({ data, onChange, onGenerate, loading }) => {
   const itemFileRef = useRef<HTMLInputElement>(null);
-  const refFileRef = useRef<HTMLInputElement>(null);
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-      };
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'itemFiles' | 'files') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-
     const newFiles: FileData[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const base64 = await fileToBase64(file);
-      newFiles.push({ name: file.name, mimeType: file.type, data: base64 });
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        newFiles.push({ name: file.name, mimeType: file.type, data: (reader.result as string).split(',')[1] });
+        if (newFiles.length === files.length) onChange({ itemFiles: [...(data.itemFiles || []), ...newFiles] });
+      };
     }
-
-    onChange({ [field]: [...(data[field] || []), ...newFiles] });
-    e.target.value = '';
-  };
-
-  const removeFile = (index: number, field: 'itemFiles' | 'files') => {
-    const updated = (data[field] || []).filter((_, i) => i !== index);
-    onChange({ [field]: updated });
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-7 space-y-7">
-      <div>
-        <label className="block text-base font-extrabold text-slate-700 mb-2 uppercase tracking-widest">
-          1. OBJETO E FINALIDADE DA LICITAÇÃO
-        </label>
-        <textarea
-          placeholder="Ex: Aquisição de gêneros alimentícios para o rancho..."
-          className="w-full px-4 py-3 border border-slate-300 rounded-xl h-28 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
-          value={data.objectAndPurpose}
-          onChange={(e) => onChange({ objectAndPurpose: e.target.value })}
-        />
+    <div className="space-y-8">
+      <div className="flex items-center gap-2 mb-4 text-blue-400">
+        <Settings className="w-4 h-4" />
+        <span className="text-[10px] font-black uppercase tracking-widest">Configurações de Demanda</span>
       </div>
 
-      <div>
-        <label className="block text-base font-extrabold text-slate-700 mb-2 uppercase tracking-widest">
-          2. DOCUMENTO ALVO (Referência)
-        </label>
-        <select
-          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none transition-all text-slate-800 bg-white font-medium cursor-pointer"
-          value={data.target}
-          onChange={(e) => onChange({ target: e.target.value as TargetField })}
-        >
-          {Object.values(TargetField).map((field) => (
-            <option key={field} value={field}>{field}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="space-y-3">
-        <label className="block text-base font-extrabold text-slate-700 uppercase tracking-widest flex justify-between">
-          <span>DESCRIÇÃO DOS ITENS / LOTES</span>
-        </label>
-        <textarea
-          placeholder="Digite ou anexe a planilha de itens abaixo."
-          className="w-full px-4 py-3 border border-slate-300 rounded-xl h-36 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none resize-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
-          value={data.itemsInfo}
-          onChange={(e) => onChange({ itemsInfo: e.target.value })}
-        />
-        
-        <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 shadow-inner">
-          <input 
-            type="file" 
-            ref={itemFileRef} 
-            className="hidden" 
-            multiple 
-            accept=".csv,.pdf,.txt,image/*" 
-            onChange={(e) => handleFileUpload(e, 'itemFiles')} 
+      <div className="space-y-6">
+        {/* Objeto */}
+        <div>
+          <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">01. Objeto da Licitação</label>
+          <textarea
+            className="w-full bg-slate-900/50 border border-white/10 rounded-xl p-4 text-sm text-white focus:border-blue-500 outline-none transition-all h-28 resize-none font-medium"
+            placeholder="Descreva o objeto central..."
+            value={data.objectAndPurpose}
+            onChange={(e) => onChange({ objectAndPurpose: e.target.value })}
           />
-          <button 
-            onClick={() => itemFileRef.current?.click()}
-            className="flex items-center gap-2 text-sm font-bold text-slate-700 hover:bg-slate-200 p-3 rounded-lg transition-all border border-slate-300 group"
-          >
-            <Paperclip className="h-5 w-5 text-blue-700 group-hover:text-blue-800" strokeWidth={2.5}/>
-            ANEXAR ITENS (PDF/CSV/TXT/IMG)
-          </button>
-          
-          {data.itemFiles && data.itemFiles.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {data.itemFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-blue-100 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm border border-blue-200">
-                  <span className="truncate max-w-[100px]">{file.name}</span>
-                  <button onClick={() => removeFile(idx, 'itemFiles')} className="text-blue-500 hover:text-blue-700"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
 
-      <div>
-        <label className="block text-base font-extrabold text-slate-700 mb-2 uppercase tracking-widest">
-          TÓPICO / CAMPO DO SISTEMA
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: Qualificação Técnica"
-          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none transition-all bg-white text-slate-800 font-medium placeholder:text-slate-400"
-          value={data.topic}
-          onChange={(e) => onChange({ topic: e.target.value })}
-        />
-      </div>
-
-      <div className="space-y-3">
-        <label className="block text-base font-extrabold text-slate-700 uppercase tracking-widest">
-          3. INTERAÇÃO E REFERÊNCIAS
-        </label>
-        <textarea
-          placeholder="Modelos de editais, normas adicionais ou instruções."
-          className="w-full px-4 py-3 border border-slate-300 rounded-xl h-28 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 outline-none resize-none transition-all text-slate-800 bg-white font-medium placeholder:text-slate-400"
-          value={data.interaction}
-          onChange={(e) => onChange({ interaction: e.target.value })}
-        />
-        
-        <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 shadow-inner">
-          <input 
-            type="file" 
-            ref={refFileRef} 
-            className="hidden" 
-            multiple 
-            accept=".pdf,.csv,.txt,image/*"
-            onChange={(e) => handleFileUpload(e, 'files')} 
-          />
-          <button 
-            onClick={() => refFileRef.current?.click()}
-            className="flex items-center gap-2 text-sm font-bold text-slate-700 hover:bg-slate-200 p-3 rounded-lg transition-all border border-slate-300 group"
+        {/* Documento */}
+        <div>
+          <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">02. Documento de Destino</label>
+          <select
+            className="w-full bg-slate-900 border border-white/10 rounded-xl p-4 text-sm text-white font-black appearance-none outline-none focus:border-blue-500"
+            value={data.target}
+            onChange={(e) => onChange({ target: e.target.value as TargetField })}
           >
-            <Upload className="h-5 w-5 text-purple-700 group-hover:text-purple-800" strokeWidth={2.5}/>
-            ANEXAR REFERÊNCIAS (PDF/CSV/TXT/IMG)
-          </button>
-          
-          {data.files && data.files.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {data.files.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-blue-100 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm border border-blue-200">
-                  <span className="truncate max-w-[100px]">{file.name}</span>
-                  <button onClick={() => removeFile(idx, 'files')} className="text-blue-500 hover:text-blue-700"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" strokeWidth={3}/></svg></button>
-                </div>
-              ))}
-            </div>
-          )}
+            {Object.values(TargetField).map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+
+        {/* Itens */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">03. Matriz de Itens</label>
+            <button onClick={() => itemFileRef.current?.click()} className="text-[9px] font-black text-blue-400 hover:text-white uppercase">Anexar Base</button>
+          </div>
+          <textarea
+            className="w-full bg-slate-900/50 border border-white/10 rounded-xl p-4 text-sm text-white focus:border-blue-500 outline-none transition-all h-32 resize-none font-medium"
+            placeholder="Cole dados da planilha..."
+            value={data.itemsInfo}
+            onChange={(e) => onChange({ itemsInfo: e.target.value })}
+          />
+          <input type="file" ref={itemFileRef} className="hidden" multiple onChange={handleFileUpload} />
+        </div>
+
+        {/* Tópico */}
+        <div>
+          <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block">04. Requisito Específico (Opcional)</label>
+          <input
+            className="w-full bg-slate-900/50 border border-white/10 rounded-xl p-4 text-sm text-white focus:border-blue-500 outline-none transition-all font-bold"
+            placeholder="Ex: Prazos, Sanções..."
+            value={data.topic}
+            onChange={(e) => onChange({ topic: e.target.value })}
+          />
         </div>
       </div>
 
       <button
         onClick={onGenerate}
         disabled={loading}
-        className={`w-full py-4 rounded-xl font-extrabold text-2xl text-white transition-all transform active:scale-95 shadow-2xl 
-          ${loading ? 'bg-slate-400 border-slate-600 animate-pulse' : 'bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950'}`
-        }
+        className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all border-b-4 
+          ${loading ? 'bg-slate-800 border-slate-950 text-slate-500' : 'bg-blue-600 border-blue-800 text-white hover:bg-blue-500 shadow-xl shadow-blue-900/20 active:translate-y-1 active:border-b-0'}`}
       >
-        {loading ? 'PROCESSANDO...' : 'GERAR TEXTO PARA O PORTAL'}
+        {loading ? 'Executando Protocolos...' : 'Redigir Documento Técnico'}
       </button>
+
+      <div className="pt-6 border-t border-white/5">
+        <div className="flex items-center gap-2 text-emerald-500 opacity-50">
+          <ShieldCheck className="w-3 h-3" />
+          <span className="text-[8px] font-black uppercase">Segurança Operacional Ativa</span>
+        </div>
+      </div>
     </div>
   );
 };

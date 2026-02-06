@@ -1,6 +1,8 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { TargetField, FullDocument } from '../types';
-import MarkdownRenderer from './MarkdownRenderer'; // Importar o novo componente
+import MarkdownRenderer from './MarkdownRenderer';
+import { X, Copy, Trash2, FileCheck } from 'lucide-react';
 
 interface FullDocumentModalProps {
   doc: FullDocument;
@@ -9,51 +11,82 @@ interface FullDocumentModalProps {
 }
 
 const FullDocumentModal: React.FC<FullDocumentModalProps> = ({ doc, onClose, onClear }) => {
+  const [copied, setCopied] = useState(false);
   const sections = Object.entries(doc) as [TargetField, string][];
 
   const handleCopyAll = () => {
-    const text = sections.map(([field, content]) => `--- ${field} ---\n\n${content}`).join('\n\n\n');
+    const text = sections.map(([field, content]) => `--- ${field.toUpperCase()} ---\n\n${content}`).join('\n\n\n');
     navigator.clipboard.writeText(text);
-    alert("Minuta completa copiada para a área de transferência!");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-8">
-      <div className="bg-white w-full max-w-4xl h-full max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border-4 border-blue-700">
-        <div className="bg-blue-800 text-white px-6 py-4 flex justify-between items-center shrink-0 shadow-md">
-          <h2 className="text-2xl font-extrabold uppercase tracking-widest italic drop-shadow-sm">Minuta Compilada</h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full transition-colors"><svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
+    <div className="fixed inset-0 bg-[#020617]/90 backdrop-blur-xl z-[100] flex items-center justify-center p-4 md:p-8">
+      <div className="bg-[#0f172a] w-full max-w-6xl h-full max-h-[90vh] rounded-[2.5rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden border border-white/10">
+        {/* Header Superior */}
+        <div className="bg-[#020617] px-10 py-6 border-b border-white/5 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600/20 rounded-xl">
+              <FileCheck className="w-6 h-6 text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black uppercase tracking-[0.2em] text-white">Dossiê de Licitação Compilado</h2>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Visualização em Conformidade com a Lei 14.133/21</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-3 hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-white">
+            <X className="w-8 h-8" />
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 md:p-10 space-y-12 bg-slate-100">
-          {sections.length === 0 ? <p className="text-center py-20 font-extrabold opacity-40 uppercase tracking-widest text-slate-500 text-lg">Documento Vazio. Gere as seções para visualizá-las aqui.</p> :
-            sections.map(([field, content], idx) => (
-              <section key={idx} className="bg-white p-7 rounded-2xl border border-slate-200 shadow-lg relative pt-12">
-                <div className="absolute -top-5 left-6 bg-blue-600 text-white px-4 py-1.5 rounded-full text-sm font-extrabold uppercase border-2 border-white shadow-xl">{field}</div>
-                <MarkdownRenderer text={content} />
-              </section>
-            ))
-          }
+        
+        {/* Área de Conteúdo - Estilo Paper View Centralizado */}
+        <div className="flex-1 overflow-y-auto p-12 space-y-20 bg-[#0f172a] custom-scrollbar">
+          {sections.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center py-20 opacity-20">
+              <FileCheck className="w-32 h-32 text-slate-400 mb-6" strokeWidth={0.5} />
+              <p className="font-black uppercase tracking-widest text-slate-500 text-2xl">Vazio Estrutural</p>
+            </div>
+          ) : (
+            <div className="max-w-4xl mx-auto space-y-16">
+              {sections.map(([field, content], idx) => (
+                <section key={idx} className="bg-white p-16 rounded-sm shadow-2xl relative border-t-8 border-blue-900">
+                  <div className="absolute -top-6 left-10 bg-blue-950 text-white px-6 py-2 rounded-md text-[10px] font-black uppercase tracking-widest shadow-xl border border-blue-800">
+                    {field}
+                  </div>
+                  <MarkdownRenderer text={content} />
+                </section>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="bg-slate-100 px-6 py-4 border-t border-slate-200 flex justify-between items-center shrink-0">
+
+        {/* Footer de Comandos */}
+        <div className="bg-[#020617] px-10 py-6 border-t border-white/5 flex justify-between items-center shrink-0">
           <button 
             onClick={onClear} 
-            className="text-red-500 font-extrabold text-sm uppercase px-5 py-2.5 rounded-lg hover:bg-red-50 transition-colors"
+            className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-red-500/10 transition-all"
           >
-            Limpar Tudo
+            <Trash2 className="w-4 h-4" />
+            Expurgar Minuta
           </button>
+          
           <div className="flex gap-4">
             <button 
               onClick={onClose} 
-              className="px-6 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-bold text-sm uppercase border border-slate-300 hover:bg-slate-300 transition-colors shadow-sm"
+              className="px-8 py-3 bg-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all border border-white/5"
             >
-              Fechar
+              Retornar ao Comando
             </button>
             <button 
               onClick={handleCopyAll} 
               disabled={sections.length === 0} 
-              className={`px-6 py-2.5 bg-blue-700 text-white rounded-xl font-bold text-sm uppercase shadow-md hover:bg-blue-800 transition-all ${sections.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-2xl transition-all flex items-center gap-2 active:scale-95
+                ${copied ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-amber-950 hover:bg-amber-400'} 
+                ${sections.length === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
             >
-              Copiar Tudo
+              <Copy className="w-4 h-4" />
+              {copied ? 'Conteúdo Copiado!' : 'Copiar Dossiê Completo'}
             </button>
           </div>
         </div>
