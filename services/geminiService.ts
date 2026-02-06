@@ -1,8 +1,8 @@
-
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ContextData, ChatMessage, FullDocument } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Correção: Vite exige import.meta.env para acessar variáveis de ambiente no navegador
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
 
 const SYSTEM_PROMPT = `VOCÊ É O DR. LICITAI COMMAND v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.
 Sua missão é redigir minutas jurídicas impecáveis seguindo a MODALIDADE DE LICITAÇÃO selecionada.
@@ -30,6 +30,12 @@ const parseAIResponse = (text: string) => {
 };
 
 export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocument): Promise<{draft: string, commentary: string}> => {
+  // Correção: Uso do modelo gemini-1.5-pro
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-pro",
+    systemInstruction: SYSTEM_PROMPT 
+  });
+
   const prompt = `
   Fase: ${data.phase}
   Modalidade: ${data.modality}
@@ -39,18 +45,10 @@ export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocum
   
   Gere a minuta oficial respeitando os requisitos da modalidade ${data.modality}.`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3-pro-preview",
-    contents: prompt,
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      temperature: 0.1,
-      responseMimeType: "application/json",
-      thinkingConfig: { thinkingBudget: 32000 }
-    },
-  });
-
-  const res = parseAIResponse(response.text || "{}");
+  const result = await model.generateContent(prompt);
+  const response = await result.response;
+  const res = parseAIResponse(response.text() || "{}");
+  
   return { 
     draft: res.rascunho_tecnico, 
     commentary: `### ⚖️ PARECER JURÍDICO [RISCO: ${res.nivel_risco}]\n${res.analise_juridica}` 
@@ -58,15 +56,20 @@ export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocum
 };
 
 export const sendChatMessage = async (msg: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, fullDoc: FullDocument): Promise<string> => {
-  const chat = ai.chats.create({
-    model: "gemini-3-pro-preview",
-    config: {
-      systemInstruction: `${SYSTEM_PROMPT}\n\nModalidade Atual: ${context.modality}\nMinuta Atual: ${currentDraft}`,
-      temperature: 0.2,
-      responseMimeType: "application/json"
-    }
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-pro",
+    systemInstruction: `${SYSTEM_PROMPT}\n\nModalidade Atual: ${context.modality}\nMinuta Atual: ${currentDraft}`
   });
-  const res = await chat.sendMessage({ message: msg });
-  const parsed = parseAIResponse(res.text || "{}");
+
+  const chat = model.startChat({
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.content }],
+    })),
+  });
+
+  const result = await chat.sendMessage(msg);
+  const response = await result.response;
+  const parsed = parseAIResponse(response.text() || "{}");
   return parsed.rascunho_tecnico || parsed.analise_juridica;
 };
