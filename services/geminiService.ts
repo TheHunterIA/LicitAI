@@ -1,11 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ContextData, ChatMessage, FullDocument } from "../types";
 
-// 1. Configuração da API Key para Vite/Vercel
-// Certifique-se de que a variável na Vercel se chama VITE_GEMINI_API_KEY
+// 1. Inicialização correta com o nome da classe importada
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
 
-// 2. Definição do Modelo conforme sua especificação
+// 2. Modelo definido como 2.5 Flash conforme sua solicitação
 const MODEL_NAME = "gemini-2.5-flash";
 
 const SYSTEM_PROMPT = `VOCÊ É O DR. LICITAI COMMAND v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.
@@ -33,8 +32,7 @@ const parseAIResponse = (text: string) => {
   }
 };
 
-export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocument): Promise<{draft: string, commentary: string}> => {
-  // Inicialização do modelo 2.5 Flash
+export const generateInitialDraft = async (data: ContextData, _fullDoc: FullDocument): Promise<{draft: string, commentary: string}> => {
   const model = genAI.getGenerativeModel({ 
     model: MODEL_NAME,
     systemInstruction: SYSTEM_PROMPT 
@@ -59,7 +57,7 @@ export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocum
   };
 };
 
-export const sendChatMessage = async (msg: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, fullDoc: FullDocument): Promise<string> => {
+export const sendChatMessage = async (msg: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, _fullDoc: FullDocument): Promise<string> => {
   const model = genAI.getGenerativeModel({ 
     model: MODEL_NAME,
     systemInstruction: `${SYSTEM_PROMPT}\n\nModalidade Atual: ${context.modality}\nMinuta Atual: ${currentDraft}`
