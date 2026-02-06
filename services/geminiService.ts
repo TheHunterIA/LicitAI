@@ -1,78 +1,81 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
+import { GoogleGenAI, Type } from "@google/genai";
 import { ContextData, ChatMessage, FullDocument } from "../types";
 
-// 1. Inicialização usando o nome correto da classe importada
-// O Vite usará a chave VITE_GEMINI_API_KEY que você configurou na Vercel
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+// Always use a named parameter for apiKey
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// 2. Modelo definido como 2.5 Flash conforme sua exigência
-const MODEL_NAME = "gemini-2.5-flash";
-
-const SYSTEM_PROMPT = `VOCÊ É O DR. LICITAI COMMAND v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.
-Sua missão é redigir minutas jurídicas impecáveis seguindo a MODALIDADE DE LICITAÇÃO selecionada.
+const SYSTEM_PROMPT = `VOCÊ É O MAGISTRADO-IA v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.
+Sua missão é gerar documentos de licitação IMPECÁVEIS e COMPLETOS.
 
 DIRETRIZES:
-1. LEI 14.133/21: Use exclusivamente a Nova Lei de Licitações.
-2. MODALIDADE: Adapte o rito conforme a escolha (Pregão, Concorrência, etc.).
-3. FORMATO: Responda obrigatoriamente em JSON estruturado.
-4. ESTILO: Jurídico-administrativo sênior, numeração decimal, alta precisão.
+1. LEI 14.133/21: Use exclusivamente a Nova Lei. Jamais cite a 8.666/93.
+2. RIGOR DOCUMENTAL: Se for TR, inclua Art. 6º, XXIII completo. Se for ETP, inclua Art. 18.
+3. ADAPTAÇÃO DE RITO: Ajuste o texto para a MODALIDADE selecionada (Pregão, Dispensa, etc.).
+4. TOM: Jurídico-administrativo de alto nível, numeração decimal.
 
-JSON SCHEMA:
-{
-  "rascunho_tecnico": "Markdown do texto completo.",
-  "analise_juridica": "Seu parecer consultivo.",
-  "nivel_risco": "BAIXO | MODERADO | ALTO"
-}`;
+RESPOSTA OBRIGATÓRIA EM JSON.`;
 
-const parseAIResponse = (text: string) => {
-  try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    return JSON.parse(jsonMatch ? jsonMatch[0] : text);
-  } catch (e) {
-    return { rascunho_tecnico: text, analise_juridica: "Falha no parse JSON.", nivel_risco: "ALTO" };
-  }
+const responseSchema = {
+  type: Type.OBJECT,
+  properties: {
+    rascunho_tecnico: { type: Type.STRING, description: "Markdown do documento completo." },
+    analise_juridica: { type: Type.STRING, description: "Parecer técnico sobre o documento." },
+    nivel_risco: { type: Type.STRING, description: "BAIXO | MODERADO | ALTO" },
+    checklist: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Itens da lei atendidos." }
+  },
+  required: ["rascunho_tecnico", "analise_juridica", "nivel_risco", "checklist"]
 };
 
-export const generateInitialDraft = async (data: ContextData, _fullDoc: FullDocument): Promise<{draft: string, commentary: string}> => {
-  const model = genAI.getGenerativeModel({ 
-    model: MODEL_NAME,
-    systemInstruction: SYSTEM_PROMPT 
+export const generateInitialDraft = async (data: ContextData, fullDoc: FullDocument) => {
+  const dossieContext = Object.entries(fullDoc).map(([k, v]) => `Doc Anterior (${k}): ${v?.substring(0, 500)}`).join('\n');
+  
+  const prompt = `
+  CONTEXTO DO PROCESSO:
+  ${dossieContext}
+  
+  SOLICITAÇÃO:
+  Documento: ${data.target}
+  Modalidade: ${data.modality}
+  Objeto: ${data.objectAndPurpose}
+  Itens/CATMAT: ${data.itemsInfo}
+  
+  Gere o documento completo com base na Lei 14.133/21.`;
+
+  // Always use generateContent to query the model
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      temperature: 0.15,
+      responseMimeType: "application/json",
+      responseSchema: responseSchema,
+      thinkingConfig: { thinkingBudget: 24000 }
+    },
   });
 
-  const prompt = `
-  Fase: ${data.phase}
-  Modalidade: ${data.modality}
-  Documento: ${data.target}
-  Objeto: ${data.objectAndPurpose}
-  Contexto Técnico: ${data.itemsInfo}
-  
-  Gere a minuta oficial respeitando os requisitos da modalidade ${data.modality}.`;
-
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const res = parseAIResponse(response.text() || "{}");
-  
+  // Directly access .text property from response
+  const res = JSON.parse(response.text || "{}");
   return { 
     draft: res.rascunho_tecnico, 
-    commentary: `### ⚖️ PARECER JURÍDICO [RISCO: ${res.nivel_risco}]\n${res.analise_juridica}` 
+    commentary: `### ⚖️ PARECER JURÍDICO [${res.nivel_risco}]\n${res.analise_juridica}\n\n**CONFORMIDADE:**\n${res.checklist.map((c: string) => `- ${c}`).join('\n')}` 
   };
 };
 
-export const sendChatMessage = async (msg: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, _fullDoc: FullDocument): Promise<string> => {
-  const model = genAI.getGenerativeModel({ 
-    model: MODEL_NAME,
-    systemInstruction: `${SYSTEM_PROMPT}\n\nModalidade Atual: ${context.modality}\nMinuta Atual: ${currentDraft}`
+// Fixed: Added fullDoc as 5th argument to match call site in App.tsx
+export const sendChatMessage = async (msg: string, history: ChatMessage[], context: ContextData, currentDraft: string | null, fullDoc: FullDocument) => {
+  const chat = ai.chats.create({
+    model: 'gemini-3-flash-preview',
+    config: {
+      systemInstruction: `${SYSTEM_PROMPT}\n\nContexto Atual: ${context.modality} / ${context.target}\nMinuta Atual: ${currentDraft}`,
+      responseMimeType: "application/json",
+      responseSchema: responseSchema
+    }
   });
-
-  const chat = model.startChat({
-    history: history.map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.content }],
-    })),
-  });
-
-  const result = await chat.sendMessage(msg);
-  const response = await result.response;
-  const parsed = parseAIResponse(response.text() || "{}");
+  // Use sendMessage for conversational turns
+  const res = await chat.sendMessage({ message: msg });
+  // Access .text property directly
+  const parsed = JSON.parse(res.text || "{}");
   return parsed.rascunho_tecnico || parsed.analise_juridica;
 };

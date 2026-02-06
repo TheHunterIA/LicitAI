@@ -7,6 +7,7 @@ export enum TargetField {
   EDITAL = 'Edital de Licitação',
   CONTRATO = 'Minuta de Contrato',
   MAPA_COMPARATIVO = 'Mapa Comparativo de Preços',
+  ESPECIFICACAO = 'Especificação Técnica do Item',
   EXIGENCIA = 'Exigência de Qualificação Técnica',
   SANCOES = 'Regime de Sanções Administrativas',
   OUTROS = 'Outros Campos'
@@ -43,6 +44,7 @@ export interface ContextData {
   target: TargetField;
   objectAndPurpose: string;
   itemsInfo: string;
+  legalBaseDetails: string;
   itemFiles?: FileData[];
 }
 

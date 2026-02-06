@@ -1,11 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TargetField, Modality, BiddingPhase, ContextData, ChatMessage, FullDocument } from './types';
 import { generateInitialDraft, sendChatMessage } from './services/geminiService';
 import InputSection from './components/InputSection';
 import OutputSection from './components/OutputSection';
 import FullDocumentModal from './components/FullDocumentModal';
-import { Scale, Sun, Moon, FileText, Download, Trash2, ShieldCheck } from 'lucide-react';
+import { Scale, Sun, Moon, FileText, Download, Trash2, ShieldCheck, Activity } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 const App: React.FC = () => {
@@ -15,6 +15,8 @@ const App: React.FC = () => {
     target: TargetField.TR,
     objectAndPurpose: '',
     itemsInfo: '',
+    legalBaseDetails: '',
+    itemFiles: []
   });
 
   const [loading, setLoading] = useState(false);
@@ -30,9 +32,10 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    if (!formData.objectAndPurpose.trim()) return alert("OBJETO NÃO DEFINIDO.");
+    if (!formData.objectAndPurpose.trim()) return alert("DEFINA O OBJETO DA CONTRATAÇÃO.");
     setLoading(true);
     try {
+      // Passamos o fullDocument para que a IA tenha consciência do que já foi escrito
       const { draft, commentary } = await generateInitialDraft(formData, fullDocument);
       if (draft) {
         setResult(draft);
@@ -40,7 +43,7 @@ const App: React.FC = () => {
       }
       if (commentary) setChatHistory(prev => [...prev, { role: 'model', text: commentary }]);
     } catch (e) {
-      alert("FALHA JURÍDICA: Verifique a conexão com o servidor.");
+      alert("ERRO NA CONEXÃO COM O GABINETE DE IA.");
     } finally {
       setLoading(false);
     }
@@ -54,7 +57,7 @@ const App: React.FC = () => {
       const response = await sendChatMessage(text, [...chatHistory, userMsg], formData, result, fullDocument);
       setChatHistory(prev => [...prev, { role: 'model', text: response }]);
     } catch (e) {
-      setChatHistory(prev => [...prev, { role: 'model', text: "Erro na consultoria." }]);
+      setChatHistory(prev => [...prev, { role: 'model', text: "Erro na consultoria técnica." }]);
     } finally {
       setChatLoading(false);
     }
@@ -63,20 +66,21 @@ const App: React.FC = () => {
   const exportPdf = () => {
     const doc = new jsPDF();
     doc.setFont("helvetica", "bold");
-    doc.text("GABINETE LICITAI - MINUTA OFICIAL", 105, 20, { align: "center" });
+    doc.text("GABINETE LICITAI - MINUTA OFICIAL v15.0", 105, 20, { align: "center" });
     doc.setFontSize(10);
-    doc.text(`Modalidade: ${formData.modality}`, 20, 35);
-    const content = result || "Documento vazio";
+    doc.text(`Modalidade: ${formData.modality} | Documento: ${formData.target}`, 20, 35);
+    doc.setFont("helvetica", "normal");
+    const content = result || "Sem conteúdo";
     const lines = doc.splitTextToSize(content, 170);
     doc.text(lines, 20, 45);
-    doc.save(`Minuta_${Date.now()}.pdf`);
+    doc.save(`${formData.target.replace(/\s/g, '_')}_${Date.now()}.pdf`);
   };
 
   return (
     <div className={`h-screen flex flex-col transition-all duration-700 ${theme === 'dark' ? 'bg-[#020617]' : 'bg-slate-50'}`}>
-      <header className={`h-20 border-b flex items-center justify-between px-10 z-50 shrink-0 ${theme === 'dark' ? 'bg-[#010409]/90 border-white/5' : 'bg-white border-slate-200'} backdrop-blur-xl`}>
+      <header className={`h-20 border-b flex items-center justify-between px-10 z-50 shrink-0 ${theme === 'dark' ? 'bg-[#010409]/90 border-white/5' : 'bg-white border-slate-200'} backdrop-blur-xl shadow-lg`}>
         <div className="flex items-center gap-4">
-          <div className="p-2.5 bg-blue-600 rounded-lg shadow-lg shadow-blue-500/20">
+          <div className="p-2.5 bg-blue-600 rounded-lg shadow-[0_0_20px_rgba(37,99,235,0.4)]">
             <Scale className="text-white w-6 h-6" />
           </div>
           <div>
@@ -84,7 +88,7 @@ const App: React.FC = () => {
               LicitAI <span className="text-blue-500">Command</span>
             </h1>
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1.5 flex items-center gap-2">
-              <ShieldCheck className="w-3 h-3 text-emerald-500" /> v15.0 Gabinete Master
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Protocolo 14.133 Ativo
             </p>
           </div>
         </div>
@@ -94,15 +98,15 @@ const App: React.FC = () => {
             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-slate-600" />}
           </button>
           
-          <button onClick={() => setShowFullDoc(true)} className={`px-6 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${theme === 'dark' ? 'bg-blue-600/10 border-blue-500/20 text-blue-400 hover:bg-blue-600/20' : 'bg-blue-50 border-blue-100 text-blue-600'}`}>
+          <button onClick={() => setShowFullDoc(true)} className={`px-6 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm ${theme === 'dark' ? 'bg-blue-600/10 border-blue-500/20 text-blue-400 hover:bg-blue-600/20' : 'bg-blue-50 border-blue-200 text-blue-600'}`}>
             <FileText className="w-4 h-4" /> Dossiê ({Object.keys(fullDocument).length})
           </button>
           
-          <button onClick={exportPdf} className="p-3 bg-blue-600 text-white rounded-xl shadow-blue-900/40 hover:scale-105 active:scale-95 transition-all">
+          <button onClick={exportPdf} className="p-3 bg-blue-600 text-white rounded-xl shadow-blue-900/30 hover:scale-105 active:scale-95 transition-all">
             <Download className="w-5 h-5" />
           </button>
 
-          <button onClick={() => confirm("Resetar Gabinete?") && (setResult(null), setChatHistory([]), setFullDocument({}))} className="p-3 text-red-500 hover:bg-red-500/10 rounded-xl">
+          <button onClick={() => confirm("Apagar todo o dossiê?") && (setResult(null), setChatHistory([]), setFullDocument({}))} className="p-3 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors">
             <Trash2 className="w-5 h-5" />
           </button>
         </div>
@@ -119,7 +123,7 @@ const App: React.FC = () => {
             chatHistory={chatHistory} 
             onSendMessage={handleSendMessage} 
             chatLoading={chatLoading} 
-            onAnalyzeContradictions={() => handleSendMessage("Auditoria Jurídica.")} 
+            onAnalyzeContradictions={() => handleSendMessage("Auditoria Jurídica Completa.")} 
             theme={theme}
           />
         </main>
