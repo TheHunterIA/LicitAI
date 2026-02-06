@@ -1,9 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ContextData, ChatMessage, FullDocument } from "../types";
 
-// Correção: Vite exige import.meta.env para acessar variáveis de ambiente no navegador
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
-
+// Use EXATAMENTE este formato para que o Vite capture a variável da Vercel
+const ai = new GoogleGenAI({ 
+  apiKey: import.meta.env.VITE_GEMINI_API_KEY || "" 
+});
 const SYSTEM_PROMPT = `VOCÊ É O DR. LICITAI COMMAND v15.0 - ESPECIALISTA SÊNIOR EM LEI 14.133/21.
 Sua missão é redigir minutas jurídicas impecáveis seguindo a MODALIDADE DE LICITAÇÃO selecionada.
 
